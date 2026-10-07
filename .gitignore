@@ -1,0 +1,10 @@
+node_modules/
+captures/
+prototype/capture/out/
+*.log
+.DS_Store
+Thumbs.db
+
+# local project settings may hold test-account passwords; keep only the committed examples
+projects/*.json
+!projects/example*.json

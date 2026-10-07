@@ -1,0 +1,91 @@
+{
+	"name": "InsureNow",
+	"source": {"folder": "C:/Users/Ruben/Documents/projects/insurance-system/docs/frontend"},
+	"start": "/index.html",
+	"screens": ["desktop"],
+	"orientation": "portrait",
+	"variants": [
+		{"name": "English", "localStorage": {"insurenow.locale": "\"en\""}}
+	],
+	"readyWhen": "!document.documentElement.classList.contains('i18n-pending')",
+	"settleMs": 300,
+	"replaceText": {"֏": "AMD"},
+	"accounts": [
+		{
+			"name": "Customer",
+			"login": [
+				{"goto": "/login.html"},
+				{"fill": "#email", "value": "user@user.com"},
+				{"fill": "#password", "value": "root"},
+				{"click": "button[type=submit]"},
+				{"waitForUrl": "dashboard"}
+			]
+		},
+		{
+			"name": "Admin",
+			"login": [
+				{"goto": "/login.html"},
+				{"fill": "#email", "value": "admin@admin.com"},
+				{"fill": "#password", "value": "root123456"},
+				{"click": "button[type=submit]"},
+				{"wait": 800}
+			]
+		}
+	],
+	"pages": [
+		{"name": "Home", "path": "/index.html", "group": "Public"},
+		{"name": "Browse Policies", "path": "/policy-browse.html", "group": "Public"},
+		{"name": "Policy — Auto Basic", "path": "/policy.html?slug=auto-basic", "group": "Public"},
+		{"name": "Companies", "path": "/company-list.html", "group": "Public"},
+		{"name": "Company — Ararat Insurance", "path": "/company.html?slug=ararat-insurance", "group": "Public"},
+		{
+			"name": "Compare", "path": "/compare.html", "group": "Public", "fresh": true,
+			"steps": [
+				{"eval": "localStorage.setItem('insurenow.compareSelection', JSON.stringify([{id:1,policyTypeId:1},{id:2,policyTypeId:1},{id:3,policyTypeId:1}]))"},
+				{"reload": true}
+			]
+		},
+		{"name": "About", "path": "/about.html", "group": "Public"},
+		{"name": "Contact", "path": "/contact.html", "group": "Public"},
+		{"name": "Terms of Service", "path": "/terms-of-service.html", "group": "Public"},
+		{"name": "Privacy Policy", "path": "/privacy-policy.html", "group": "Public"},
+		{"name": "Log In", "path": "/login.html", "group": "Public"},
+		{"name": "Register", "path": "/register.html", "group": "Public"},
+
+		{"name": "Dashboard", "path": "/dashboard.html", "group": "Customer", "account": "Customer"},
+		{"name": "My Policies", "path": "/my-policies.html", "group": "Customer", "account": "Customer"},
+		{"name": "Purchased Policy", "path": "/purchased-policy.html", "group": "Customer", "account": "Customer"},
+		{"name": "Payments", "path": "/payments.html", "group": "Customer", "account": "Customer"},
+		{"name": "Instalment Payment", "path": "/instalment-payment.html", "group": "Customer", "account": "Customer"},
+		{"name": "Payment", "path": "/payment.html?vehicleAgeBand=0-3&duration=12&paymentFrequency=monthly&slug=auto-basic", "group": "Customer", "account": "Customer"},
+		{
+			"name": "Confirmation", "group": "Customer", "account": "Customer", "fresh": true,
+			"steps": [
+				{"goto": "/payment.html?vehicleAgeBand=0-3&duration=12&paymentFrequency=monthly&slug=auto-basic"},
+				{"fill": "[name=cardholderName]", "value": "Aram Petrosyan"},
+				{"fill": "[name=cardNumber]", "value": "4242 4242 4242 4242"},
+				{"fill": "[name=expiry]", "value": "12/30"},
+				{"fill": "[name=cvv]", "value": "123"},
+				{"fill": "[name=country]", "value": "Armenia"},
+				{"fill": "[name=city]", "value": "Yerevan"},
+				{"fill": "[name=address]", "value": "1 Test Street"},
+				{"fill": "[name=idDocumentNumber]", "value": "TEST0000"},
+				{"click": "[data-pay-button]"},
+				{"waitForUrl": "confirmation"}
+			]
+		},
+		{"name": "Claims", "path": "/claims-list.html", "group": "Customer", "account": "Customer"},
+		{"name": "Claim — Select Policy", "path": "/claim-select-policy.html", "group": "Customer", "account": "Customer"},
+		{"name": "Submit Claim", "path": "/submit-claim.html", "group": "Customer", "account": "Customer"},
+		{"name": "Claim Detail", "path": "/claim-detail.html", "group": "Customer", "account": "Customer"},
+		{"name": "Claim Edit", "path": "/claim-edit.html", "group": "Customer", "account": "Customer"},
+		{"name": "Notifications", "path": "/notifications.html", "group": "Customer", "account": "Customer"},
+		{"name": "Profile", "path": "/profile.html", "group": "Customer", "account": "Customer"},
+
+		{"name": "Admin — Dashboard", "path": "/admin-dashboard.html", "group": "Admin", "account": "Admin"},
+		{"name": "Admin — Users", "path": "/admin-users.html", "group": "Admin", "account": "Admin"},
+		{"name": "Admin — Companies", "path": "/admin-companies.html", "group": "Admin", "account": "Admin"},
+		{"name": "Admin — Company Edit", "path": "/admin-company-edit.html", "group": "Admin", "account": "Admin"},
+		{"name": "Admin — Claims", "path": "/admin-claims.html", "group": "Admin", "account": "Admin"}
+	]
+}
