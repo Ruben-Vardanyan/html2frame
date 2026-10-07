@@ -18,7 +18,7 @@ start.bat / start.command      Windows / macOS: npm install on first run, start 
 package.json                   "start": "node server.js"; dependency playwright-core
 server.js                      http server on localhost:5600: panel UI, API, SSE progress
 src/
-  extract.js                   DRAFT DONE: in-page extractor (window.__htmlToFigma.extract(opts))
+  extract.js                   DRAFT DONE: in-page extractor (window.__html2frame.extract(opts))
   screens.js                   DRAFT DONE: presets + resolveScreens(screens, orientation)
   static-server.js             serves a project folder as-is (no clean URLs), random free port
   capture.js                   Playwright runner (also a CLI: node src/capture.js projects/x.json)
@@ -84,7 +84,7 @@ page its own new browser context, so its side effects (localStorage, purchases) 
    - wait for `load`, then `networkidle` (timeout-tolerant, 5 s), then `readyWhen`, then
      `document.fonts.ready`, then `settleMs`;
    - scroll to the bottom in viewport steps (lazy images), then back to the top;
-   - `page.addScriptTag({path: src/extract.js})`, then `page.evaluate(o => window.__htmlToFigma.extract(o), {replaceText})`.
+   - `page.addScriptTag({path: src/extract.js})`, then `page.evaluate(o => window.__html2frame.extract(o), {replaceText})`.
 4. Image pass in Node: for every `img` node and every image layer, fetch `src` with `context.request`
    (data: URLs are decoded locally):
    - SVG → `t:"svg"` node with root width/height set to the box;
@@ -117,7 +117,7 @@ Single page, five sections:
 4. **Pages.** "Find pages" (crawl) fills a table: tick, name, path, group, account, steps (JSON editor
    with a step picker), "add state" (duplicates the row with steps). It also offers "Add page" manually.
 5. **Capture.** Button, live log (SSE), summary, "Download JSON", and the note "In Figma: Plugins →
-   Development → html-to-figma-design → Load latest from panel".
+   Development → html2frame → Load latest from panel".
 
 API:
 
@@ -149,7 +149,7 @@ building.
   - when the page already has content, start below the existing nodes.
 - **New fills.** Linear gradients (transform in FORMAT.md) and image layers on frames; image corner radius.
 - **Report.** Number of frames per screen, and missing fonts with what replaced them.
-- **Manifest.** Name "html-to-figma-design"; `documentAccess: dynamic-page`;
+- **Manifest.** Name "html2frame"; `documentAccess: dynamic-page`;
   `networkAccess: {allowedDomains: ["none"], devAllowedDomains: ["http://localhost:5600"]}`.
 
 ## Build order (each step ends with its check)

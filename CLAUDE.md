@@ -1,4 +1,4 @@
-# html-to-figma-design
+# html2frame
 
 Captures web pages in a real browser and rebuilds them in Figma as editable frames, text and vectors, at
 chosen screen sizes. Status: the prototype works (`prototype/`); **v1 is being built** following
@@ -7,7 +7,7 @@ chosen screen sizes. Status: the prototype works (`prototype/`); **v1 is being b
 ## Read first
 
 1. `docs/PLAN.md`: what to build, in what order, and how to check each step.
-2. `docs/DECISIONS.md`: product decisions D1–D11. Don't re-open them; build to them.
+2. `docs/DECISIONS.md`: product decisions D1–D13. Don't re-open them; build to them.
 3. `docs/FORMAT.md`: the JSON contract between capture and plugin.
 4. `docs/RESEARCH.md`: gotchas already paid for (clean URLs, rAF in hidden tabs, i18n readiness, fonts…).
 
@@ -18,7 +18,7 @@ chosen screen sizes. Status: the prototype works (`prototype/`); **v1 is being b
 | `prototype/` | Working reference: Figma plugin + manual capture scripts. Keep it working. |
 | `examples/insurenow.capture.json` | Prototype output, 31 pages, 1.2 MB. Regression sample for the plugin. |
 | `examples/insurenow.settings.json` | v1 settings for the same site (31 pages, 2 accounts, steps). Its `source.folder` is a path on the author's PC. |
-| `src/extract.js` | **Draft, done.** In-page extractor for v1 (`window.__htmlToFigma.extract(opts)`). |
+| `src/extract.js` | **Draft, done.** In-page extractor for v1 (`window.__html2frame.extract(opts)`). |
 | `src/screens.js` | **Draft, done.** Screen presets + `resolveScreens(screens, orientation)`. |
 
 ## Next step

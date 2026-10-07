@@ -16,10 +16,5 @@ comments and commits can refer to it.
 | **D9** | **Screens:** desktop-hd 1920×1080, desktop 1440×900, laptop 1280×800, laptop-sm 1366×768, tablet-lg 1024×1366, tablet 768×1024, phone 390×844, phone-sm 360×780, plus custom `{name, width, height}`. Orientation is **portrait / landscape / both**; desktops and laptops are landscape only. Phones and tablets are emulated as touch devices (`isMobile`, `hasTouch`). | Requested by the user; matches common device classes. |
 | **D10** | **The Figma plugin stays a local development plugin** (desktop app, "Import plugin from manifest"). | Works on the free plan; nothing to publish or review. |
 | **D11** | **Separate GitHub repo**, published by the user. Claude never runs `git commit`. | The user owns history and publishing. |
-
-## Open (for the user)
-
-- **License.** MIT is suggested.
-- **Repo / product name.** Using "Figma" in a description ("…to Figma") is fine. Figma's brand guidelines
-  discourage using it as part of a product's own name, so consider a neutral name with "for Figma" in the
-  tagline.
+| **D12** | **Name: `html2frame`** (repo `Ruben-Vardanyan/html2frame`; Figma plugin name "html2frame"). | Short and neutral. It avoids "Figma" in the product name (brand guidelines) and is distinct from html.to.design. |
+| **D13** | **MIT License** (`LICENSE`, © 2026 Ruben Vardanyan). It was added locally, not on GitHub, so the first push has no unrelated-history conflict. | Permissive and common for small tools. |

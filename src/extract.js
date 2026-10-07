@@ -366,5 +366,5 @@
 		return {width: W, height: H, title: document.title, root};
 	}
 
-	window.__htmlToFigma = {extract};
+	window.__html2frame = {extract};
 })();

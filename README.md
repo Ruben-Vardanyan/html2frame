@@ -1,4 +1,4 @@
-# html-to-figma-design
+# html2frame
 
 Turn the pages of a website into **editable Figma designs**: real frames, text layers and vectors (not
 screenshots), at the screen sizes you choose: desktop, laptop, tablet, phone, portrait or landscape.
@@ -46,4 +46,4 @@ node by node.
 
 ## License
 
-TBD (MIT suggested).
+[MIT](LICENSE) © 2026 Ruben Vardanyan
