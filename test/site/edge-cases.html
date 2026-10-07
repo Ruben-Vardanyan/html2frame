@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en" class="loading">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Edge cases — Fixture</title>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300..800;1,400&family=Noto+Sans+Armenian:wght@400;600;700&family=Playfair+Display:ital,wght@0,700;1,400&display=swap">
+	<link rel="stylesheet" href="css/styles.css">
+	<script src="js/app.js" defer></script>
+</head>
+<body data-page="edge">
+	<!-- Edge cases: things that are hard or not supported yet. Each card says what Figma should show today
+	     ("Expected"), so a reviewer can tell a regression from a known limit. -->
+	<svg width="0" height="0" style="position:absolute">
+		<symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-9.5-9.3C1 8 3.4 4.5 7 4.5c2 0 3.5 1 5 2.8 1.5-1.8 3-2.8 5-2.8 3.6 0 6 3.5 4.5 7.2C19.5 16.4 12 21 12 21z"/></symbol>
+	</svg>
+
+	<section class="section">
+		<div class="wrap">
+			<div class="eyebrow">Known limits and tricky cases</div>
+			<h1>Edge cases</h1>
+			<p class="muted" style="max-width:640px">Each card says what should appear in Figma today. “Not supported” cases document current limits; if one starts working, update its card.</p>
+		</div>
+	</section>
+
+	<section class="section alt">
+		<div class="wrap edge-grid">
+			<div class="edge">
+				<h3>Hidden elements</h3>
+				<div class="stage">
+					<div>Visible line</div>
+					<div style="display:none">display: none (must not appear)</div>
+					<div class="hidden-vis">visibility: hidden (must not appear)</div>
+					<div class="hidden-opacity">opacity: 0 (must not appear)</div>
+					<span class="sr-only">Screen-reader only text</span>
+					<div>Second visible line</div>
+				</div>
+				<div class="expect">Expected: only the two visible lines. The 1px screen-reader text may appear as a tiny layer.</div>
+			</div>
+
+			<div class="edge">
+				<h3>Pseudo-elements</h3>
+				<div class="stage">
+					<span class="badge ok dot">::before dot</span>
+					<ol class="counter-list" style="margin-top:12px"><li>First</li><li>Second</li></ol>
+				</div>
+				<div class="expect">Expected: the green dot. CSS counters (“1.”, “2.” from <code>counter()</code>) are not evaluated: they are missing.</div>
+			</div>
+
+			<div class="edge">
+				<h3>List markers</h3>
+				<div class="stage">
+					<ul class="marker-list"><li>Bullet one</li><li>Bullet two</li></ul>
+					<ol class="marker-list"><li>Number one</li><li>Number two</li></ol>
+				</div>
+				<div class="expect">Expected: bullets and numbers as text layers to the left of each item (markers are turned into text).</div>
+			</div>
+
+			<div class="edge">
+				<h3>Paint order vs. z-index</h3>
+				<div class="stage"><div class="z-a">z-index 2 (red, on top)</div><div class="z-b">z-index 1 (blue)</div></div>
+				<div class="expect">Not supported: layers follow DOM order, so blue is drawn over red in Figma.</div>
+			</div>
+
+			<div class="edge">
+				<h3>Transforms</h3>
+				<div class="stage"><span class="rotated">Rotated −8°</span><br><br><span class="scaled">Scaled 0.7</span></div>
+				<div class="expect">Expected: the orange box rotated −8° with its text, the blue box at 70 % size (text included). Rotation, scale and translate are kept; skew is not.</div>
+			</div>
+
+			<div class="edge">
+				<h3>Text shadow, blend, filter</h3>
+				<div class="stage" style="display:grid;gap:8px">
+					<span class="text-shadow">Text shadow</span>
+					<span class="blend">mix-blend-mode</span>
+					<span class="filter-blur">filter: blur</span>
+				</div>
+				<div class="expect">Expected: an orange text shadow (drop shadow on the text layer), the blue box in Multiply blend mode, the green box with a layer blur. Other filters (brightness, grayscale…) have no Figma equivalent.</div>
+			</div>
+
+			<div class="edge">
+				<h3>clip-path</h3>
+				<div class="stage"><div class="clip-path">Slanted by clip-path</div></div>
+				<div class="expect">Expected: the slanted shape, as a mask inside the frame; the text stays editable.</div>
+			</div>
+
+			<div class="edge">
+				<h3>SVG &lt;use&gt; sprites</h3>
+				<div class="stage" style="display:flex;gap:16px;color:var(--danger)">
+					<svg width="32" height="32" fill="currentColor"><use href="#i-heart"/></svg>
+					<svg width="32" height="32" fill="var(--brand)"><use href="img/sprite.svg#i-star"/></svg>
+				</div>
+				<div class="expect">Expected: the red heart (symbol in this page) and the blue star (symbol in img/sprite.svg) as vectors.</div>
+			</div>
+
+			<div class="edge">
+				<h3>Canvas, video, iframe</h3>
+				<div class="stage" style="display:grid;gap:8px">
+					<canvas id="canvas" width="180" height="80"></canvas>
+					<video width="180" height="80" poster="img/wide.jpg" muted></video>
+					<iframe width="180" height="80" srcdoc="<p style='font:14px sans-serif'>Inside an iframe</p>" title="iframe"></iframe>
+				</div>
+				<div class="expect">Expected: all three as images (a picture of each element taken at capture time; not editable).</div>
+			</div>
+
+			<div class="edge">
+				<h3>Multi-column, vertical text</h3>
+				<div class="stage" style="display:flex;gap:16px">
+					<div class="columns" style="flex:1">Text flowing over two CSS columns, long enough to need a second column for the rest of the sentence.</div>
+					<div class="vertical">縦書き vertical</div>
+				</div>
+				<div class="expect">Expected: one text layer per column; the vertical text turned 90° clockwise (all glyphs turn, CJK included).</div>
+			</div>
+
+			<div class="edge">
+				<h3>Animation and fixed</h3>
+				<div class="stage"><div class="anim">Animated (stopped)</div></div>
+				<div class="expect">Animations are switched off before capture: full opacity, no offset. The black “Fixed chip” sits at the bottom right of the first screen.</div>
+			</div>
+
+			<div class="edge">
+				<h3>details / summary, hr</h3>
+				<div class="stage">
+					<details open><summary>Open details</summary><p style="margin:6px 0 0">Content inside an open &lt;details&gt;.</p></details>
+					<hr style="border:0;border-top:1px solid var(--line);margin:12px 0">
+					<details><summary>Closed details</summary><p>Hidden content.</p></details>
+				</div>
+				<div class="expect">Expected: open content visible, closed content hidden, a 1px line, and ▼ / ▶ triangles before the summaries.</div>
+			</div>
+		</div>
+	</section>
+
+	<div class="fixed-chip">Fixed chip</div>
+</body>
+</html>

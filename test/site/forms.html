@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en" class="loading">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Forms — Fixture</title>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300..800;1,400&family=Noto+Sans+Armenian:wght@400;600;700&family=Playfair+Display:ital,wght@0,700;1,400&display=swap">
+	<link rel="stylesheet" href="css/styles.css">
+	<script src="js/app.js" defer></script>
+</head>
+<body data-page="forms">
+	<!-- Forms: controls have no text nodes, so the extractor draws their value or placeholder itself.
+	     States for steps: "Submit" with empty required fields shows errors; "Open dialog" shows a fixed modal. -->
+	<section class="section">
+		<div class="wrap">
+			<div class="eyebrow">Form controls</div>
+			<h1>Forms</h1>
+			<p class="muted" style="max-width:640px">Values, placeholders, selects, checkboxes, radios, toggles and buttons. Press “Submit” with the required fields empty to see the error state.</p>
+		</div>
+	</section>
+
+	<section class="section alt">
+		<div class="wrap">
+			<div class="alert" id="form-alert" role="alert"></div>
+			<form id="demo-form" class="form-grid" novalidate>
+				<div class="field">
+					<label for="f-name">Full name *</label>
+					<input id="f-name" type="text" placeholder="e.g. Ani Karapetyan" required>
+					<span class="error-text">Please enter your name.</span>
+				</div>
+				<div class="field">
+					<label for="f-email">E-mail *</label>
+					<input id="f-email" type="email" placeholder="you@example.com" required>
+					<span class="error-text">Please enter a valid e-mail.</span>
+				</div>
+				<div class="field">
+					<label for="f-company">Company (value)</label>
+					<input id="f-company" type="text" value="Fixture Studio LLC">
+				</div>
+				<div class="field">
+					<label for="f-pass">Password (masked)</label>
+					<input id="f-pass" type="password" value="example1">
+					<span class="hint">Shown as dots in Figma.</span>
+				</div>
+				<div class="field">
+					<label for="f-qty">Number</label>
+					<input id="f-qty" type="number" value="42">
+				</div>
+				<div class="field">
+					<label for="f-date">Date</label>
+					<input id="f-date" type="date" value="2026-10-07">
+				</div>
+				<div class="field">
+					<label for="f-search">Search, centered text</label>
+					<input id="f-search" type="search" placeholder="Search products…" style="text-align:center">
+				</div>
+				<div class="field">
+					<label for="f-disabled">Disabled</label>
+					<input id="f-disabled" type="text" value="Cannot edit this" disabled>
+				</div>
+				<div class="field">
+					<label for="f-country">Select, custom chevron *</label>
+					<select id="f-country" class="select-custom" required>
+						<option value="">Choose a country…</option>
+						<option>Armenia</option>
+						<option>Georgia</option>
+					</select>
+					<span class="error-text">Please choose a country.</span>
+				</div>
+				<div class="field">
+					<label for="f-size">Select, native look</label>
+					<select id="f-size" class="select-native">
+						<option>Small</option>
+						<option selected>Medium</option>
+						<option>Large</option>
+					</select>
+				</div>
+				<div class="field full">
+					<label for="f-msg">Textarea *</label>
+					<textarea id="f-msg" placeholder="Tell us what you need. Multi-line placeholder text wraps inside the box like this." required></textarea>
+					<span class="error-text">Please write a message.</span>
+				</div>
+				<div class="field full">
+					<textarea aria-label="Textarea with value">A textarea with a value.
+It keeps its line breaks.</textarea>
+				</div>
+				<div class="field">
+					<span class="label">Checkboxes (native)</span>
+					<div class="checks">
+						<label><input type="checkbox" checked> Checked</label>
+						<label><input type="checkbox"> Unchecked</label>
+						<label><input type="checkbox" checked disabled> Disabled</label>
+					</div>
+				</div>
+				<div class="field">
+					<span class="label">Radio buttons (native)</span>
+					<div class="checks">
+						<label><input type="radio" name="plan" checked> Monthly</label>
+						<label><input type="radio" name="plan"> Yearly</label>
+					</div>
+				</div>
+				<div class="field">
+					<span class="label">Toggles (appearance: none)</span>
+					<div class="checks">
+						<label><input class="toggle" type="checkbox" checked> On</label>
+						<label><input class="toggle" type="checkbox"> Off</label>
+					</div>
+				</div>
+				<div class="field">
+					<label for="f-range">Range (skipped by the extractor)</label>
+					<input id="f-range" class="range" type="range" value="70">
+				</div>
+				<div class="field full">
+					<span class="label">Terms *</span>
+					<div class="checks"><label><input type="checkbox" required> I agree to the terms</label></div>
+					<span class="error-text">You must agree to continue.</span>
+				</div>
+				<div class="field full">
+					<div class="form-actions">
+						<button class="btn btn-primary" type="submit" id="submit">Submit</button>
+						<button class="btn btn-ghost" type="reset">Reset</button>
+						<button class="btn btn-ghost" type="button" id="open-dialog">Open dialog</button>
+						<button class="btn btn-primary" type="button" disabled>Disabled</button>
+					</div>
+				</div>
+			</form>
+		</div>
+	</section>
+
+	<div class="overlay" id="dialog" role="dialog" aria-modal="true">
+		<div class="dialog">
+			<h3>Delete this address?</h3>
+			<p class="muted">The modal is position: fixed. In a capture it sits over the first screen of the page.</p>
+			<div class="field"><label for="d-reason">Reason</label><input id="d-reason" type="text" placeholder="Optional"></div>
+			<div class="dialog-actions">
+				<button class="btn btn-ghost" type="button" data-close>Cancel</button>
+				<button class="btn btn-primary" type="button" data-close style="background:var(--danger);box-shadow:none">Delete</button>
+			</div>
+		</div>
+	</div>
+</body>
+</html>

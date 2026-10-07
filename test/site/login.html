@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en" class="loading">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Sign in — Fixture</title>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300..800;1,400&family=Noto+Sans+Armenian:wght@400;600;700&family=Playfair+Display:ital,wght@0,700;1,400&display=swap">
+	<link rel="stylesheet" href="css/styles.css">
+	<script src="js/app.js" defer></script>
+</head>
+<body>
+	<!-- Login: any e-mail and any non-empty password sign in (stored in localStorage, nothing is checked).
+	     Used by the "Member" account's login steps. -->
+	<main class="auth">
+		<div class="auth-art">
+			<h1 style="color:#fff">Welcome back</h1>
+			<p style="max-width:360px;opacity:.9">Sign in to see your orders, saved addresses and rewards. Any e-mail and password work on this test site.</p>
+		</div>
+		<div class="auth-form">
+			<form id="login-form" novalidate>
+				<div>
+					<h2 style="margin-bottom:4px">Sign in</h2>
+					<p class="muted" style="margin:0">New here? <a href="#">Create an account</a></p>
+				</div>
+				<div class="alert" id="login-error">Enter an e-mail and a password.</div>
+				<div class="field"><label for="email">E-mail</label><input id="email" type="email" placeholder="you@example.com" autocomplete="off"></div>
+				<div class="field"><label for="password">Password</label><input id="password" type="password" placeholder="••••••••" autocomplete="off"></div>
+				<div class="checks" style="justify-content:space-between"><label><input type="checkbox" checked> Remember me</label><a href="#" style="font-size:14px">Forgot password?</a></div>
+				<button class="btn btn-primary" type="submit" style="justify-content:center">Sign in</button>
+			</form>
+		</div>
+	</main>
+</body>
+</html>

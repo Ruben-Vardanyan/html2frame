@@ -1,3 +1,4 @@
+// html2frame — MIT License, © 2026 Ruben Vardanyan (see LICENSE)
 // screens.js — screen presets and orientation handling.
 // Sizes are CSS pixels in portrait/landscape order as the device is usually held.
 
@@ -24,8 +25,9 @@ function resolveScreens(screens, orientation) {
 	const list = [];
 	for (const s of screens && screens.length ? screens : ['desktop']) {
 		if (typeof s === 'object') {
+			const id = (s.name || 'custom').toLowerCase().replace(/\s+/g, '-');
 			list.push({
-				id: (s.name || 'custom').toLowerCase().replace(/\s+/g, '-'),
+				id, preset: id,
 				label: s.name || 'Custom', width: s.width, height: s.height || 900,
 				mobile: !!s.mobile, orientation: s.width > (s.height || 900) ? 'landscape' : 'portrait',
 			});
@@ -38,7 +40,7 @@ function resolveScreens(screens, orientation) {
 			const short = Math.min(preset.width, preset.height), long = Math.max(preset.width, preset.height);
 			const [width, height] = preset.mobile ? (o === 'portrait' ? [short, long] : [long, short]) : [preset.width, preset.height];
 			list.push({
-				id: key + (preset.mobile ? '-' + o : ''),
+				id: key + (preset.mobile ? '-' + o : ''), preset: key, // preset: "phone" for both orientations
 				label: preset.label + (preset.mobile ? ' ' + o : ''),
 				width, height, mobile: preset.mobile, orientation: o,
 			});

@@ -1,6 +1,5 @@
 node_modules/
 captures/
-prototype/capture/out/
 *.log
 .DS_Store
 Thumbs.db
@@ -8,3 +7,5 @@ Thumbs.db
 # local project settings may hold test-account passwords; keep only the committed examples
 projects/*.json
 !projects/example*.json
+# deleted projects are kept here (they may hold passwords too)
+projects/deleted/

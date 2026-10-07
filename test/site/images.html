@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en" class="loading">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Images — Fixture</title>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300..800;1,400&family=Noto+Sans+Armenian:wght@400;600;700&family=Playfair+Display:ital,wght@0,700;1,400&display=swap">
+	<link rel="stylesheet" href="css/styles.css">
+	<script src="js/app.js" defer></script>
+</head>
+<body data-page="images">
+	<!-- Images: every <img> source the capture must fetch and convert (PNG, JPEG, WebP, GIF, SVG file, data:
+	     URIs, <picture> per screen, lazy images far down the page, a missing file), with object-fit and radius. -->
+	<section class="section">
+		<div class="wrap">
+			<div class="eyebrow">Image fills and vectors</div>
+			<h1>Images</h1>
+			<p class="muted" style="max-width:640px">PNG, JPEG and GIF go to Figma as they are; WebP is converted to PNG; SVG files become editable vectors. A missing file is skipped with a warning.</p>
+		</div>
+	</section>
+
+	<section class="section alt">
+		<div class="wrap">
+			<h2>Formats</h2>
+			<div class="img-grid">
+				<div class="img-cell"><div class="frame"><img class="fit-cover" src="img/product-1.png" alt="PNG"></div>PNG</div>
+				<div class="img-cell"><div class="frame"><img class="fit-cover" src="img/product-2.jpg" alt="JPEG"></div>JPEG</div>
+				<div class="img-cell"><div class="frame"><img class="fit-cover" src="img/product-3.webp" alt="WebP"></div>WebP (converted to PNG)</div>
+				<div class="img-cell"><div class="frame"><img class="fit-fill" src="img/swatch.gif" alt="GIF" style="image-rendering:pixelated"></div>GIF 2×2, stretched</div>
+				<div class="img-cell"><div class="frame" style="display:flex"><img class="img-svg" src="img/logo.svg" alt="SVG file"></div>SVG file → vector</div>
+				<div class="img-cell"><div class="frame" style="display:flex;align-items:center;justify-content:center"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Crect width='80' height='80' rx='20' fill='%232f9e44'/%3E%3Cpath d='M22 41l12 12 24-26' fill='none' stroke='white' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" alt="data SVG" style="width:80px;height:80px"></div>data: SVG (URL-encoded)</div>
+				<div class="img-cell"><div class="frame" style="display:flex;align-items:center;justify-content:center"><img src="data:image/gif;base64,R0lGODdhAgACAPEAAP8AAAD/AAAA//8A/ywAAAAAAgACAAACAoRRADs=" alt="data GIF" style="width:80px;height:80px;image-rendering:pixelated"></div>data: GIF (base64)</div>
+				<div class="img-cell"><div class="frame"><img class="fit-cover" src="img/does-not-exist.png" alt="Missing image"></div>Missing file (404) → warning</div>
+			</div>
+		</div>
+	</section>
+
+	<section class="section">
+		<div class="wrap">
+			<h2>object-fit and corners</h2>
+			<div class="img-grid">
+				<div class="img-cell"><div class="frame"><img class="fit-cover" src="img/wide.jpg" alt="cover"></div>cover</div>
+				<div class="img-cell"><div class="frame"><img class="fit-contain" src="img/wide.jpg" alt="contain"></div>contain</div>
+				<div class="img-cell"><div class="frame"><img class="fit-fill" src="img/wide.jpg" alt="fill"></div>fill (stretched)</div>
+				<div class="img-cell"><div class="frame"><img class="fit-none" src="img/hero.jpg" alt="none"></div>none (cropped, shown as fill)</div>
+				<div class="img-cell"><img class="img-round fit-cover" src="img/product-4.png" alt="radius 24" style="height:180px;width:100%"> radius 24px</div>
+				<div class="img-cell"><img class="img-circle" src="img/avatar.webp" alt="circle"> 50 % (circle)</div>
+				<div class="img-cell"><img class="img-corners" src="img/product-2.jpg" alt="corners" style="height:180px;width:100%"> per-corner radius</div>
+				<div class="img-cell"><img src="img/product-1.png" alt="shadowed" style="height:180px;width:100%;object-fit:cover;border-radius:12px;box-shadow:var(--shadow);border:4px solid var(--card)"> border + shadow (image only)</div>
+			</div>
+		</div>
+	</section>
+
+	<section class="section alt">
+		<div class="wrap">
+			<h2>Responsive source</h2>
+			<p class="muted">&lt;picture&gt; picks hero-small.jpg below 769px and hero.jpg above. The capture uses the image the browser chose (currentSrc).</p>
+			<picture>
+				<source media="(max-width: 768px)" srcset="img/hero-small.jpg">
+				<img src="img/hero.jpg" alt="Responsive picture" style="width:100%;border-radius:16px">
+			</picture>
+		</div>
+	</section>
+
+	<section class="section">
+		<div class="wrap">
+			<h2>Lazy images far down the page</h2>
+			<p class="muted">These use loading="lazy". The capture scrolls through the page first so they load.</p>
+			<div style="height:900px;display:flex;align-items:center;justify-content:center;border:2px dashed var(--line);border-radius:16px;color:var(--muted)">Spacer, 900px tall</div>
+			<div class="img-grid" style="margin-top:24px">
+				<div class="img-cell"><div class="frame"><img class="fit-cover" loading="lazy" src="img/product-1.png" alt="lazy 1"></div>lazy PNG</div>
+				<div class="img-cell"><div class="frame"><img class="fit-cover" loading="lazy" src="img/product-2.jpg" alt="lazy 2"></div>lazy JPEG</div>
+				<div class="img-cell"><div class="frame"><img class="fit-cover" loading="lazy" src="img/product-3.webp" alt="lazy 3"></div>lazy WebP</div>
+				<div class="img-cell"><div class="frame"><img class="fit-cover" loading="lazy" src="img/product-4.png" alt="lazy 4"></div>lazy PNG</div>
+			</div>
+		</div>
+	</section>
+</body>
+</html>

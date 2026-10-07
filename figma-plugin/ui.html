@@ -1,0 +1,439 @@
+<style>
+	/* Figma passes its theme as --figma-color-* (showUI themeColors: true); the fallbacks are for a plain browser. */
+	:root {
+		--bg: var(--figma-color-bg, #ffffff);
+		--bg-2: var(--figma-color-bg-secondary, #f5f5f5);
+		--bg-hover: var(--figma-color-bg-hover, #f0f0f0);
+		--text: var(--figma-color-text, #1e1e1e);
+		--text-2: var(--figma-color-text-secondary, #6b6b6b);
+		--text-3: var(--figma-color-text-tertiary, #9a9a9a);
+		--line: var(--figma-color-border, #e6e6e6);
+		--brand: var(--figma-color-bg-brand, #0d99ff);
+		--brand-hover: var(--figma-color-bg-brand-hover, #007be5);
+		--on-brand: var(--figma-color-text-onbrand, #ffffff);
+		--brand-soft: color-mix(in srgb, var(--brand) 12%, transparent);
+		--danger: var(--figma-color-text-danger, #dc3412);
+		--warn: var(--figma-color-text-warning, #b86200);
+		--ok: var(--figma-color-text-success, #14ae5c);
+		--radius: 8px;
+	}
+	/* scrollbars and native controls follow Figma's theme (html.figma-dark with themeColors) */
+	:root { color-scheme: light; --scroll: var(--figma-color-border-strong, #c9ccd1); }
+	html.figma-dark { color-scheme: dark; --scroll: var(--figma-color-border-strong, #4a4a4a); }
+	* { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: var(--scroll) transparent; }
+	::-webkit-scrollbar { width: 8px; height: 8px; }
+	::-webkit-scrollbar-track { background: transparent; }
+	::-webkit-scrollbar-thumb { background: var(--scroll); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+	html, body { height: 100%; }
+	body { margin: 0; display: flex; flex-direction: column; background: var(--bg); color: var(--text); font: 12px/1.45 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+	button { font: inherit; color: inherit; }
+	svg { flex: none; }
+
+	header { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+	.logo { width: 32px; height: 32px; flex: none; object-fit: contain; } /* assets/logo-64.png, embedded */
+	.title { font-weight: 600; font-size: 13px; }
+	.subtitle { color: var(--text-2); font-size: 11px; }
+
+	main { flex: 1; overflow: auto; padding: 4px 16px 16px; }
+	main.drag { outline: 2px dashed var(--brand); outline-offset: -8px; background: var(--brand-soft); }
+	section { padding-top: 14px; }
+	.section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+	.section-head h2 { margin: 0; font-size: 11px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: .6px; }
+	.links { display: flex; gap: 10px; }
+	.link { background: none; border: 0; padding: 0; color: var(--brand); cursor: pointer; font-size: 11px; font-weight: 500; }
+	.link:hover { text-decoration: underline; }
+
+	/* source choices */
+	.sources { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+	.source { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); text-align: left; cursor: pointer; transition: border-color .12s, background .12s; }
+	.source:hover { border-color: var(--brand); background: var(--brand-soft); }
+	.source .icon { width: 28px; height: 28px; border-radius: 6px; background: var(--bg-2); display: grid; place-items: center; color: var(--text); }
+	.source b { font-size: 12px; font-weight: 600; }
+	.source span { color: var(--text-2); font-size: 11px; }
+	.source input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+	/* loaded file */
+	.file { display: none; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-2); }
+	.file .icon { width: 32px; height: 32px; border-radius: 6px; background: var(--brand); color: var(--on-brand); display: grid; place-items: center; }
+	.file .meta { flex: 1; min-width: 0; }
+	.file .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.file .sub { color: var(--text-2); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	body.loaded .sources { display: none; }
+	body.loaded .file { display: flex; }
+
+	/* choices: screen sizes, variants, groups (all unticked at first; at least one of each is required) */
+	.needs-file { display: none; }
+	body.loaded .needs-file { display: block; }
+	.hint { margin: 6px 2px 0; color: var(--text-3); font-size: 11px; }
+	.section-head h2 .req { margin-left: 6px; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--text-3); }
+	.choice.missing .section-head h2 .req { color: var(--danger); }
+	.list { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+	.row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; cursor: pointer; user-select: none; transition: background .12s; }
+	.row + .row { border-top: 1px solid var(--line); }
+	.row:hover { background: var(--bg-hover); }
+	.row:has(input:checked) { background: var(--brand-soft); }
+	.row .grow { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; white-space: nowrap; overflow: hidden; }
+	.row .name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
+	.row .dim { color: var(--text-2); font-size: 11px; font-variant-numeric: tabular-nums; }
+	.pill { min-width: 22px; padding: 1px 7px; border-radius: 10px; background: var(--bg-2); color: var(--text-2); font-size: 11px; font-weight: 500; text-align: center; }
+	input[type=checkbox] { width: 14px; height: 14px; margin: 0; accent-color: var(--brand); cursor: pointer; flex: none; }
+
+	/* layout choice */
+	.segmented { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+	.option { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer; transition: border-color .12s, background .12s; }
+	.option:hover { background: var(--bg-hover); }
+	.option input { display: none; }
+	.option:has(input:checked) { border-color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); background: var(--brand-soft); }
+	.option b { font-weight: 600; }
+	.option span { color: var(--text-2); font-size: 11px; }
+	.thumb { height: 44px; border-radius: 5px; background: var(--bg-2); display: flex; gap: 4px; padding: 6px; }
+	.thumb i { display: block; border-radius: 2px; background: var(--text-3); opacity: .55; }
+	.option:has(input:checked) .thumb i { background: var(--brand); opacity: .8; }
+	.toggle-row { margin-top: 8px; border: 1px solid var(--line); border-radius: var(--radius); }
+
+	/* report */
+	.report { display: none; border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; }
+	.report.show { display: block; }
+	.report .headline { display: flex; align-items: center; gap: 8px; font-weight: 600; margin-bottom: 6px; }
+	.report .headline.ok { color: var(--ok); }
+	.report .headline.bad { color: var(--danger); }
+	.report h3 { margin: 10px 0 2px; font-size: 11px; font-weight: 600; color: var(--text-2); }
+	.report ul { margin: 0; padding-left: 16px; }
+	.report li { margin: 1px 0; overflow-wrap: anywhere; }
+	.report li.warn { color: var(--warn); list-style: none; margin-left: -16px; }
+
+	/* footer */
+	footer { border-top: 1px solid var(--line); padding: 12px 16px 14px; display: flex; flex-direction: column; gap: 10px; }
+	.status { min-height: 16px; color: var(--text-2); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.status.error { color: var(--danger); white-space: normal; }
+	.bar { height: 4px; border-radius: 2px; background: var(--bg-2); overflow: hidden; display: none; }
+	.bar.show { display: block; }
+	.bar > div { height: 100%; width: 0; background: var(--brand); transition: width .15s; }
+	.primary { height: 36px; border: 0; border-radius: 6px; background: var(--brand); color: var(--on-brand); font-weight: 600; cursor: pointer; }
+	.primary:hover:not(:disabled) { background: var(--brand-hover); }
+	.primary:disabled { opacity: .4; cursor: default; }
+	.legal { margin-top: -2px; text-align: center; color: var(--text-3); font-size: 10px; }
+	.legal a { color: var(--text-3); }
+	.legal a:hover { color: var(--brand); }
+</style>
+
+<header>
+	<img class="logo" alt="html2frame" width="32" height="32" src="data:image/png;base64,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">
+	<div>
+		<div class="title">html2frame</div>
+		<div class="subtitle">Web pages to editable Figma frames</div>
+	</div>
+</header>
+
+<main id="main">
+	<section>
+		<div class="section-head"><h2>Source</h2></div>
+		<div class="sources">
+			<button class="source" id="latest" type="button">
+				<div class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="9" rx="1.5"/><path d="M5.5 14h5M8 12v2"/></svg></div>
+				<b>Latest from panel</b>
+				<span>localhost:5600</span>
+			</button>
+			<label class="source">
+				<div class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2H4.5A1.5 1.5 0 0 0 3 3.5v9A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5V6z"/><path d="M9 2v4h4"/></svg></div>
+				<b>Choose file</b>
+				<span>or drop a .json here</span>
+				<input id="file" type="file" accept=".json,application/json" multiple>
+			</label>
+		</div>
+		<div class="file">
+			<div class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2H4.5A1.5 1.5 0 0 0 3 3.5v9A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5V6z"/><path d="M9 2v4h4"/></svg></div>
+			<div class="meta">
+				<div class="name" id="fileName"></div>
+				<div class="sub" id="fileMeta"></div>
+			</div>
+			<button class="link" id="change" type="button">Change</button>
+		</div>
+	</section>
+
+	<div class="needs-file" id="choices"></div>
+
+	<section class="needs-file">
+		<div class="section-head"><h2>Layout</h2></div>
+		<div class="segmented">
+			<label class="option">
+				<input type="radio" name="layout" value="single" checked>
+				<div class="thumb" style="flex-direction:column"><i style="height:6px;width:60%"></i><i style="height:8px;width:100%"></i><i style="height:8px;width:70%"></i></div>
+				<div><b>One page</b><br><span>A section per screen, on the current page</span></div>
+			</label>
+			<label class="option">
+				<input type="radio" name="layout" value="pages">
+				<div class="thumb"><i style="width:30%"></i><i style="width:30%"></i><i style="width:30%"></i></div>
+				<div><b>Page per screen</b><br><span>A Figma page for each size</span></div>
+			</label>
+		</div>
+		<label class="row toggle-row">
+			<input type="checkbox" id="autoLayout">
+			<span class="grow"><span class="name">Use Auto Layout</span><span class="dim">flex rows and columns</span></span>
+		</label>
+		<p class="hint">Frames whose layout Auto Layout reproduces exactly get it (direction, gap, padding, alignment); the rest keep exact positions.</p>
+	</section>
+
+	<section>
+		<div class="report" id="report"></div>
+	</section>
+</main>
+
+<footer>
+	<div class="status" id="status">Load a capture to begin.</div>
+	<div class="bar" id="bar"><div></div></div>
+	<button class="primary" id="go" type="button" disabled>Import</button>
+	<div class="legal">MIT License · © 2026 Ruben Vardanyan · <a href="#" id="repo">GitHub</a></div>
+</footer>
+
+<script>
+	const PANEL = 'http://localhost:5600/api/captures/latest';
+	const $ = id => document.getElementById(id);
+	let busy = false, choices = null; // choices: {screens, variants, groups, combos} from the plugin
+	// true after a successful import: Import stays locked ("Imported ✓") until the selection or layout changes,
+	// so a second click cannot add a duplicate by accident
+	let imported = false;
+
+	function send(msg) {
+		parent.postMessage({pluginMessage: msg}, '*');
+	}
+
+	function setStatus(text, error) {
+		$('status').textContent = text || '';
+		$('status').classList.toggle('error', !!error);
+	}
+
+	function esc(s) {
+		return String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+	}
+
+	// ---- loading ----------------------------------------------------------------------------------------
+
+	$('latest').onclick = async () => {
+		setStatus('Loading from the panel…');
+		try {
+			const res = await fetch(PANEL);
+			if (!res.ok) throw new Error(res.status === 404 ? 'the panel has no captures yet' : 'HTTP ' + res.status);
+			send({type: 'load', files: [await res.json()], source: 'Control panel'});
+		} catch (e) {
+			setStatus('Could not reach the control panel (' + e.message + '). Start it, or choose a file.', true);
+		}
+	};
+
+	async function readFiles(list) {
+		const files = [];
+		let names = [];
+		try {
+			for (const f of list) {
+				files.push(JSON.parse(await f.text()));
+				names.push(f.name);
+			}
+		} catch (e) {
+			setStatus('That file is not valid JSON: ' + e.message, true);
+			return;
+		}
+		if (files.length) {
+			setStatus('Reading ' + names.join(', ') + '…');
+			send({type: 'load', files, source: names.join(', ')});
+		}
+	}
+
+	$('file').onchange = () => readFiles($('file').files);
+
+	const main = $('main');
+	main.addEventListener('dragover', e => { e.preventDefault(); main.classList.add('drag'); });
+	main.addEventListener('dragleave', e => { if (e.target === main) main.classList.remove('drag'); });
+	main.addEventListener('drop', e => {
+		e.preventDefault();
+		main.classList.remove('drag');
+		if (!busy && e.dataTransfer.files.length) readFiles(e.dataTransfer.files);
+	});
+
+	$('change').onclick = () => {
+		if (busy) return;
+		document.body.classList.remove('loaded');
+		$('file').value = '';
+		$('report').classList.remove('show');
+		choices = null;
+		lists = [];
+		setStatus('Load a capture to begin.');
+		refresh(false);
+	};
+
+	// ---- choices: screen sizes, variants (or one list per dimension), groups ---------------------------
+	// Everything starts unticked; the user picks. A list is shown only when it has more than one option
+	// (screen sizes always), and every shown list needs at least one tick.
+
+	let lists = []; // [{id, title, options, need, dim?, always?, hint?}]
+
+	function makeLists(msg) {
+		const out = [{id: 'screens', title: 'Screen sizes', options: msg.screens, always: true, need: 'Choose at least one screen size.',
+			hint: 'Only the sizes in this capture. For more, tick them under Screen sizes in the control panel and capture again.'}];
+		if (msg.dimensions && msg.dimensions.length) {
+			msg.dimensions.forEach((d, i) => out.push({id: 'dim' + i, title: d.name, options: d.options, dim: d.name, need: 'Choose at least one ' + d.name.toLowerCase() + '.'}));
+		} else {
+			out.push({id: 'variants', title: 'Languages & variants', options: msg.variants, need: 'Choose at least one language or variant.'});
+		}
+		out.push({id: 'groups', title: 'Groups', options: msg.groups, need: 'Choose at least one group.'});
+		return out;
+	}
+
+	function shown(list) {
+		return list.always || list.options.length > 1;
+	}
+
+	function sectionOf(list) {
+		return document.querySelector('.choice[data-list="' + list.id + '"]');
+	}
+
+	// ticked option ids of a list; a hidden list means its single option
+	function picked(list) {
+		if (!shown(list)) return list.options.map(o => o.id);
+		return [...sectionOf(list).querySelectorAll('input:checked')].map(b => b.value);
+	}
+
+	function listById(id) {
+		return lists.find(l => l.id === id);
+	}
+
+	// variants that match the ticks: directly, or a tick in every dimension (Language and Theme)
+	function pickedVariants() {
+		const dims = lists.filter(l => l.dim);
+		if (!dims.length) return picked(listById('variants'));
+		const sets = dims.map(l => [l.dim, new Set(picked(l))]);
+		return choices.variants.filter(v => sets.every(([name, set]) => set.has(v.parts[name]))).map(v => v.id);
+	}
+
+	function frameCount() {
+		if (!choices) return 0;
+		const s = new Set(picked(listById('screens'))), v = new Set(pickedVariants()), g = new Set(picked(listById('groups')));
+		let n = 0;
+		for (const [key, count] of Object.entries(choices.combos)) {
+			const [ks, kv, kg] = key.split('\n');
+			if (s.has(ks) && v.has(kv) && g.has(kg)) n += count;
+		}
+		return n;
+	}
+
+	function layout() {
+		const on = document.querySelector('input[name=layout]:checked');
+		return on ? on.value : 'single';
+	}
+
+	function refresh(updateStatus) {
+		const missing = choices ? lists.filter(l => shown(l) && !picked(l).length) : [];
+		lists.forEach(l => { if (sectionOf(l)) sectionOf(l).classList.toggle('missing', missing.includes(l)); });
+		const n = frameCount();
+		$('go').disabled = busy || imported || !choices || missing.length > 0 || n === 0;
+		$('go').textContent = busy ? 'Importing…' : imported ? 'Imported ✓' : n && !missing.length ? 'Import ' + n + ' frame' + (n === 1 ? '' : 's') : 'Import';
+		if (updateStatus !== false && choices && !busy) {
+			setStatus(missing.length ? missing[0].need : n ? 'Ready to import ' + n + ' frame' + (n === 1 ? '' : 's') + '.' : 'Nothing matches that selection.');
+		}
+	}
+
+	function size(o) {
+		return o.width && o.height ? o.width + ' × ' + o.height : '';
+	}
+
+	// the user changed what to import: Import is available again
+	function changed() {
+		imported = false;
+		refresh();
+	}
+	document.querySelectorAll('input[name=layout], #autoLayout').forEach(r => { r.addEventListener('change', changed); });
+
+	function showChoices(msg) {
+		imported = false;
+		choices = {screens: msg.screens, variants: msg.variants, groups: msg.groups, combos: msg.combos};
+		lists = makeLists(msg);
+		$('choices').innerHTML = lists.filter(shown).map(l => '<section class="choice" data-list="' + l.id + '">'
+			+ '<div class="section-head"><h2>' + esc(l.title) + '<span class="req">required</span></h2>'
+			+ '<div class="links"><button class="link" data-all type="button">All</button><button class="link" data-none type="button">None</button></div></div>'
+			+ '<div class="list">' + l.options.map(o => '<label class="row">'
+				+ '<input type="checkbox" value="' + esc(o.id) + '">'
+				+ '<span class="grow"><span class="name">' + esc(o.label) + '</span>' + (size(o) ? '<span class="dim">' + size(o) + '</span>' : '') + '</span>'
+				+ '<span class="pill" title="pages">' + o.count + '</span></label>').join('') + '</div>'
+			+ (l.hint ? '<p class="hint">' + esc(l.hint) + '</p>' : '')
+			+ '</section>').join('');
+		$('choices').querySelectorAll('.choice').forEach(sec => {
+			sec.querySelectorAll('input').forEach(b => { b.onchange = changed; });
+			sec.querySelector('[data-all]').onclick = () => { sec.querySelectorAll('input').forEach(b => { b.checked = true; }); changed(); };
+			sec.querySelector('[data-none]').onclick = () => { sec.querySelectorAll('input').forEach(b => { b.checked = false; }); changed(); };
+		});
+		const ns = msg.screens.length, nv = msg.variants.length;
+		$('fileName').textContent = msg.project || msg.source || 'Capture';
+		$('fileMeta').textContent = msg.total + ' page' + (msg.total === 1 ? '' : 's') + ' · ' + ns + ' size' + (ns === 1 ? '' : 's')
+			+ (nv > 1 ? ' · ' + nv + ' variants' : '') + (msg.source && msg.project ? ' · ' + msg.source : '');
+		document.body.classList.add('loaded');
+		$('report').classList.remove('show');
+		refresh();
+	}
+
+	// ---- import -----------------------------------------------------------------------------------------
+
+	// the plugin window cannot open links itself: the plugin opens the repository page
+	$('repo').onclick = e => {
+		e.preventDefault();
+		send({type: 'open-repo'});
+	};
+
+	$('go').onclick = () => {
+		busy = true;
+		$('report').classList.remove('show');
+		$('bar').classList.add('show');
+		$('bar').firstElementChild.style.width = '0';
+		setStatus('Starting…');
+		refresh(false);
+		const sel = {screens: picked(listById('screens'))};
+		if (choices.variants.length > 1) sel.variants = pickedVariants();
+		if (choices.groups.length > 1) sel.groups = picked(listById('groups'));
+		send(Object.assign({type: 'import', layout: layout(), autoLayout: $('autoLayout').checked}, sel));
+	};
+
+	// the plugin's report: first line = summary, "Heading:" lines, "• item" and "⚠ note" lines
+	function showReport(text) {
+		const lines = text.split('\n');
+		const ok = /^Done/.test(lines[0]) && !/\nFailed:/.test(text);
+		let html = '<div class="headline ' + (ok ? 'ok' : 'bad') + '">'
+			+ (ok ? '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3L13 5"/></svg>' : '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 4v5M8 12v.01"/></svg>')
+			+ esc(lines[0]) + '</div>';
+		let open = false;
+		for (const l of lines.slice(1)) {
+			if (l.startsWith('• ') || l.startsWith('⚠ ')) {
+				if (!open) { html += '<ul>'; open = true; }
+				html += '<li' + (l.startsWith('⚠') ? ' class="warn"' : '') + '>' + esc(l.startsWith('• ') ? l.slice(2) : l) + '</li>';
+			} else {
+				if (open) { html += '</ul>'; open = false; }
+				html += '<h3>' + esc(l.replace(/:$/, '')) + '</h3>';
+			}
+		}
+		if (open) html += '</ul>';
+		$('report').innerHTML = html;
+		$('report').classList.add('show');
+		$('report').scrollIntoView({block: 'nearest'});
+	}
+
+	onmessage = (e) => {
+		const msg = e.data.pluginMessage;
+		if (!msg) return;
+		if (msg.type === 'settings') {
+			const r = document.querySelector('input[name=layout][value="' + msg.layout + '"]');
+			if (r) r.checked = true;
+			$('autoLayout').checked = !!msg.autoLayout;
+		}
+		if (msg.type === 'loaded') showChoices(msg);
+		if (msg.type === 'error') setStatus(msg.text, true);
+		if (msg.type === 'progress') {
+			setStatus(msg.total ? msg.done + ' / ' + msg.total + ' · ' + msg.text : msg.text);
+			if (msg.total) $('bar').firstElementChild.style.width = Math.round(100 * msg.done / msg.total) + '%';
+		}
+		if (msg.type === 'done') {
+			busy = false;
+			$('bar').classList.remove('show');
+			imported = !/^Error/.test(msg.text);
+			setStatus(imported ? 'Finished. Change the selection or layout to import more.' : msg.text, !imported);
+			if (!/^Error/.test(msg.text)) showReport(msg.text);
+			refresh(false);
+		}
+	};
+</script>

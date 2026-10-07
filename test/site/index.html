@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en" class="loading">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Home — Fixture</title>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300..800;1,400&family=Noto+Sans+Armenian:wght@400;600;700&family=Playfair+Display:ital,wght@0,700;1,400&display=swap">
+	<link rel="stylesheet" href="css/styles.css">
+	<script src="js/app.js" defer></script>
+</head>
+<body data-page="home">
+	<!-- Home: a realistic landing page. Tests: sticky JS header, gradient over a cover image (different image on
+	     phones), inline SVG icons, JS-rendered product cards (PNG/JPEG/WebP images, object-fit), pseudo-element
+	     quote mark and badge, gradient band with a form, responsive grids, translated text. -->
+	<section class="hero">
+		<div class="hero-inner">
+			<span class="hero-badge" data-i18n="hero.badge"></span>
+			<h1 data-i18n="hero.title"></h1>
+			<p data-i18n="hero.text"></p>
+			<div class="hero-actions">
+				<a class="btn btn-light btn-pill" href="product.html?id=1" data-i18n="hero.shop"></a>
+				<a class="btn btn-ghost btn-pill" style="color:#fff;border-color:rgba(255,255,255,.5)" href="#story" data-i18n="hero.more"></a>
+			</div>
+		</div>
+	</section>
+
+	<section class="section">
+		<div class="wrap">
+			<div class="section-head">
+				<div>
+					<div class="eyebrow" data-i18n="features.eyebrow"></div>
+					<h2 data-i18n="features.title"></h2>
+				</div>
+			</div>
+			<div class="features">
+				<div class="feature">
+					<div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg></div>
+					<h3 data-i18n="f1.t"></h3>
+					<p class="muted" data-i18n="f1.d"></p>
+				</div>
+				<div class="feature">
+					<div class="icon c2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+					<h3 data-i18n="f2.t"></h3>
+					<p class="muted" data-i18n="f2.d"></p>
+				</div>
+				<div class="feature">
+					<div class="icon c3"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.9 7.5.7-5.7 5 1.7 7.4L12 18l-6.5 4 1.7-7.4-5.7-5 7.5-.7z"/></svg></div>
+					<h3 data-i18n="f3.t"></h3>
+					<p class="muted" data-i18n="f3.d"></p>
+				</div>
+				<div class="feature">
+					<div class="icon c4"><svg class="icon-css" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></div>
+					<h3 data-i18n="f4.t"></h3>
+					<p class="muted" data-i18n="f4.d"></p>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<section class="section alt">
+		<div class="wrap">
+			<div class="section-head">
+				<div>
+					<div class="eyebrow" data-i18n="products.eyebrow"></div>
+					<h2 data-i18n="products.title"></h2>
+				</div>
+				<a href="product.html?id=1" data-i18n="products.all"></a>
+			</div>
+			<div class="products" data-products></div>
+		</div>
+	</section>
+
+	<section class="section" id="story">
+		<div class="wrap">
+			<blockquote class="quote" style="margin:0 auto">
+				<span data-i18n="quote.text"></span>
+				<div class="quote-by"><img src="img/avatar.webp" alt="Ani K.">Ani K. · Yerevan</div>
+			</blockquote>
+		</div>
+	</section>
+
+	<section class="section" style="padding-top:0">
+		<div class="wrap">
+			<div class="band">
+				<div>
+					<h2 data-i18n="band.title" style="color:#fff"></h2>
+					<p data-i18n="band.text" style="margin:0;opacity:.85"></p>
+				</div>
+				<form onsubmit="return false">
+					<input type="email" data-i18n-ph="band.ph" aria-label="E-mail">
+					<button class="btn btn-light" type="submit" data-i18n="band.cta"></button>
+				</form>
+			</div>
+		</div>
+	</section>
+</body>
+</html>

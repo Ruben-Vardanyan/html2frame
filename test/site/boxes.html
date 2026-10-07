@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en" class="loading">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Boxes — Fixture</title>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300..800;1,400&family=Noto+Sans+Armenian:wght@400;600;700&family=Playfair+Display:ital,wght@0,700;1,400&display=swap">
+	<link rel="stylesheet" href="css/styles.css">
+	<script src="js/app.js" defer></script>
+</head>
+<body data-page="boxes">
+	<!-- Boxes: everything a frame carries (fill, border, radius, shadow, opacity, clipping) plus gradient and
+	     background-image fills. Labels say what each box should look like in Figma. -->
+	<section class="section">
+		<div class="wrap">
+			<div class="eyebrow">Frames and fills</div>
+			<h1>Boxes</h1>
+			<p class="muted" style="max-width:640px">Borders, corner radii, shadows, opacity, clipping, gradients and background images. Boxes marked “not supported” show what the importer leaves out today.</p>
+		</div>
+	</section>
+
+	<section class="section alt">
+		<div class="wrap">
+			<h2>Borders</h2>
+			<div class="swatches">
+				<div class="swatch b-solid">2px solid</div>
+				<div class="swatch b-sides">Left 6px + bottom 2px</div>
+				<div class="swatch b-dashed">2px dashed</div>
+				<div class="swatch b-dotted">3px dotted (as dashed)</div>
+			</div>
+		</div>
+	</section>
+
+	<section class="section">
+		<div class="wrap">
+			<h2>Corner radius</h2>
+			<div class="swatches">
+				<div class="swatch r-uniform">16px all corners</div>
+				<div class="swatch r-corners">40 / 0 / 40 / 0</div>
+				<div class="swatch r-circle">50 %</div>
+				<div class="swatch r-pill">Pill 999px</div>
+			</div>
+		</div>
+	</section>
+
+	<section class="section alt">
+		<div class="wrap">
+			<h2>Shadows, opacity, transparency</h2>
+			<div class="swatches">
+				<div class="swatch s-soft" style="border-radius:14px">Two soft drop shadows</div>
+				<div class="swatch s-hard" style="border-radius:8px">Hard offset shadow</div>
+				<div class="swatch s-spread" style="border-radius:14px">Spread ring 6px</div>
+				<div class="swatch s-inset" style="border-radius:14px">Inset shadow (not supported)</div>
+				<div class="swatch o-50" style="border-radius:14px">Opacity 50 %</div>
+				<div class="swatch o-nested" style="border-radius:14px"><div>Opacity .6 inside .5</div></div>
+				<div class="swatch bg-alpha" style="border-radius:14px">rgba fill 15 %</div>
+				<div class="swatch" style="border-radius:14px;background:transparent;border:1px dashed var(--line)">Transparent, border only</div>
+			</div>
+		</div>
+	</section>
+
+	<section class="section">
+		<div class="wrap">
+			<h2>Clipping</h2>
+			<div class="swatches">
+				<div class="swatch clip" style="border-radius:14px">overflow: hidden<span class="overflowing"></span></div>
+				<div class="swatch noclip" style="border-radius:14px">overflow: visible<span class="overflowing"></span></div>
+				<div class="swatch scroll-box" style="border-radius:14px;align-items:start;display:block">overflow: auto with more content than fits. Line two of the scrolling box. Line three of the scrolling box. Line four. Line five. Line six. Line seven. Line eight. The rest is clipped in Figma.</div>
+				<div class="swatch" style="border-radius:14px;overflow:hidden;padding:0;position:relative"><img src="img/wide.jpg" alt="clipped image" style="position:absolute;left:-60px;top:-20px;width:400px;max-width:none"></div>
+			</div>
+		</div>
+	</section>
+
+	<section class="section alt">
+		<div class="wrap">
+			<h2>Gradients</h2>
+			<div class="swatches">
+				<div class="swatch g-angle" style="border-radius:14px">linear 135deg</div>
+				<div class="swatch g-to-right" style="border-radius:14px">to right</div>
+				<div class="swatch g-stops" style="border-radius:14px">hard stops 33 / 66 %</div>
+				<div class="swatch g-transparent" style="border-radius:14px">to transparent</div>
+				<div class="swatch g-turn" style="border-radius:14px">.25turn, 3 stops</div>
+				<div class="swatch g-corner" style="border-radius:14px">to top left</div>
+				<div class="swatch g-multi" style="border-radius:14px">two layers</div>
+				<div class="swatch g-radial" style="border-radius:14px">radial (not supported)</div>
+			</div>
+		</div>
+	</section>
+
+	<section class="section">
+		<div class="wrap">
+			<h2>Background images</h2>
+			<div class="swatches">
+				<div class="swatch bg-cover" style="border-radius:14px">cover (JPEG)</div>
+				<div class="swatch bg-contain" style="border-radius:14px">contain</div>
+				<div class="swatch bg-stretch" style="border-radius:14px">100 % 100 %</div>
+				<div class="swatch bg-webp-cover" style="border-radius:14px">cover (WebP → PNG)</div>
+				<div class="swatch bg-icon" style="border-radius:14px">Icon, right 16px center</div>
+				<div class="swatch bg-icon-calc" style="border-radius:14px">Icon at calc(100% − 40px)</div>
+				<div class="swatch bg-data-svg" style="border-radius:14px">data: SVG icon</div>
+				<div class="swatch bg-pattern" style="border-radius:14px">Repeating pattern (one tile only)</div>
+			</div>
+		</div>
+	</section>
+</body>
+</html>

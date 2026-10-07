@@ -61,8 +61,19 @@ pages drawn by JavaScript.
   absolute positions, so it isn't affected.
 - **Patching JS with Python strings:** `"\b"` in a normal Python string is a backspace (0x08), and it
   silently broke a regex. Use raw strings, or edit with a proper editor tool.
+- **Display scaling changes layout by fractions of a pixel.** On a 125 % Windows display, Chromium snaps
+  borders to whole device pixels, so `border: 1px` measures 0.8 CSS px, and font metrics round differently.
+  The prototype sample mixes pages captured at 100 % and 125 % (3–7 px height differences on 12 pages).
+  Playwright's `deviceScaleFactor` emulation does **not** reproduce this; only the Chromium flag
+  `--force-device-scale-factor` does. v1 captures at scale 1, i.e. the CSS values as written.
 - **Viewport emulation in automation panes** may reset between turns. Re-apply it before each capture and
   check `innerWidth`.
+
+- **macOS launchers.** A `.command` file opens in Terminal on double-click, but only with LF line endings and
+  the executable bit, which Windows cannot set on disk: commit it with `git update-index --chmod=+x`, and keep
+  `.gitattributes` (`*.command eol=lf`). Finder may start it without Homebrew's PATH, so the launcher adds
+  `/opt/homebrew/bin` and `/usr/local/bin`. Playwright's `channel: 'msedge'` / `'chrome'` find the installed
+  apps on macOS too.
 
 ## 5. Figma plugin facts
 
@@ -77,6 +88,10 @@ pages drawn by JavaScript.
   clipping.
 - `figma.createFrame()` clips content by default. Set `clipsContent` from CSS `overflow`.
 - **Coordinates.** Capture uses absolute page coordinates; the plugin subtracts the parent's position.
+- **Pages per file.** The free plan may limit how many pages a file can have (not yet checked in Figma).
+  Plugin v1 reuses the empty "Page 1" of a new file, and if `createPage()` fails it puts that screen on an
+  existing page under a title instead of stopping.
+- **`createImage`** only accepts PNG, JPEG and GIF; capture converts other formats to PNG.
 
 ## 6. Prototype results
 

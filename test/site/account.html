@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en" class="loading">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Account — Fixture</title>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300..800;1,400&family=Noto+Sans+Armenian:wght@400;600;700&family=Playfair+Display:ital,wght@0,700;1,400&display=swap">
+	<link rel="stylesheet" href="css/styles.css">
+	<script src="js/app.js" defer></script>
+</head>
+<body data-auth>
+	<!-- Account: needs a login (data-auth). Without one, app.js redirects to login.html?next=account.html, which
+	     the capture reports as a warning. Tests: stat cards, gradient progress bars, a table with zebra rows,
+	     badges with ::before dots, columns hidden on phones. -->
+	<section class="section">
+		<div class="wrap">
+			<div class="profile">
+				<img src="img/avatar.webp" alt="Avatar">
+				<div>
+					<div class="eyebrow">Member account</div>
+					<h2 style="margin:0">Hello, <span data-session></span></h2>
+				</div>
+				<span style="flex:1"></span>
+				<button class="btn btn-ghost btn-sm" type="button" id="logout">Sign out</button>
+			</div>
+
+			<div class="stats">
+				<div class="stat"><div class="muted">Orders</div><div class="value">12</div><div class="trend">▲ 3 this month</div></div>
+				<div class="stat"><div class="muted">Spent</div><div class="value">186 400 ֏</div><div class="trend down">▼ 8 % vs. last month</div></div>
+				<div class="stat"><div class="muted">Reward points</div><div class="value">1 240</div><div class="progress"><div style="width:62%"></div></div></div>
+				<div class="stat"><div class="muted">Profile complete</div><div class="value">80 %</div><div class="progress"><div style="width:80%"></div></div></div>
+			</div>
+
+			<div class="table-card">
+				<table class="table">
+					<thead>
+						<tr><th>Order</th><th class="hide-phone">Date</th><th>Status</th><th class="hide-phone">Items</th><th class="num">Total</th></tr>
+					</thead>
+					<tbody>
+						<tr><td><a href="product.html?id=1">#10482</a></td><td class="hide-phone">2 Oct 2026</td><td><span class="badge ok dot">Delivered</span></td><td class="hide-phone">Aurora Lamp</td><td class="num">24 500 ֏</td></tr>
+						<tr><td><a href="product.html?id=2">#10471</a></td><td class="hide-phone">28 Sep 2026</td><td><span class="badge wait dot">On the way</span></td><td class="hide-phone">Fern Planter × 2</td><td class="num">25 000 ֏</td></tr>
+						<tr><td><a href="product.html?id=3">#10455</a></td><td class="hide-phone">19 Sep 2026</td><td><span class="badge no dot">Cancelled</span></td><td class="hide-phone">Violet Throw</td><td class="num">18 900 ֏</td></tr>
+						<tr><td><a href="product.html?id=4">#10430</a></td><td class="hide-phone">2 Sep 2026</td><td><span class="badge ok dot">Delivered</span></td><td class="hide-phone">Ember Mug × 4</td><td class="num">26 000 ֏</td></tr>
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</section>
+</body>
+</html>

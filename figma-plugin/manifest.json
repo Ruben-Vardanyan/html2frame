@@ -1,0 +1,14 @@
+{
+	"name": "html2frame",
+	"id": "html2frame-local",
+	"api": "1.0.0",
+	"main": "code.js",
+	"ui": "ui.html",
+	"editorType": ["figma"],
+	"documentAccess": "dynamic-page",
+	"networkAccess": {
+		"allowedDomains": ["none"],
+		"devAllowedDomains": ["http://localhost:5600"],
+		"reasoning": "Loads the latest capture from the local html2frame control panel."
+	}
+}

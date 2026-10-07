@@ -1,0 +1,74 @@
+{
+	"name": "Fixture",
+	"source": {"folder": "../test/site"},
+	"start": "/index.html",
+	"screens": ["desktop", "phone"],
+	"orientation": "portrait",
+	"dimensions": [
+		{
+			"name": "Language",
+			"options": [
+				{"name": "English", "localStorage": {"fixture.lang": "en"}},
+				{"name": "Armenian", "query": {"lang": "hy"}}
+			]
+		},
+		{
+			"name": "Theme",
+			"options": [
+				{"name": "Light", "cookies": [{"name": "theme", "value": "light"}]},
+				{"name": "Dark", "cookies": [{"name": "theme", "value": "dark"}]}
+			]
+		}
+	],
+	"readyWhen": "document.documentElement.dataset.ready === 'yes'",
+	"settleMs": 300,
+	"replaceText": {"֏": "AMD"},
+	"accounts": [
+		{
+			"name": "Member",
+			"login": [
+				{"goto": "/login.html"},
+				{"fill": "#email", "value": "member@example.com"},
+				{"fill": "#password", "value": "any-password-works"},
+				{"click": "button[type=submit]"},
+				{"waitForUrl": "account.html"}
+			]
+		}
+	],
+	"pages": [
+		{"name": "Home", "path": "/index.html", "group": "Public"},
+		{
+			"name": "Home — menu open", "path": "/index.html", "group": "Public",
+			"screens": ["phone", "tablet-portrait"],
+			"steps": [
+				{"click": ".burger"}
+			]
+		},
+		{"name": "Typography", "path": "/typography.html", "group": "Public"},
+		{"name": "Boxes", "path": "/boxes.html", "group": "Public"},
+		{"name": "Images", "path": "/images.html", "group": "Public"},
+		{"name": "Product", "path": "/product.html?id=1", "group": "Public"},
+		{"name": "Forms", "path": "/forms.html", "group": "Public"},
+		{
+			"name": "Forms — errors", "path": "/forms.html", "group": "Public",
+			"steps": [
+				{"fill": "#f-email", "value": "not-an-email"},
+				{"click": "#submit"},
+				{"waitFor": "#form-alert.show"}
+			]
+		},
+		{
+			"name": "Forms — dialog", "path": "/forms.html", "group": "Public",
+			"steps": [
+				{"click": "#open-dialog"},
+				{"waitFor": "#dialog.open"}
+			]
+		},
+		{"name": "Edge cases", "path": "/edge-cases.html", "group": "Public"},
+		{"name": "Sign in", "path": "/login.html", "group": "Public"},
+		{"name": "Account — no login (expect a redirect warning)", "path": "/account.html", "group": "Public"},
+
+		{"name": "Account", "path": "/account.html", "group": "Member", "account": "Member"},
+		{"name": "Product — signed in", "path": "/product.html?id=3", "group": "Member", "account": "Member"}
+	]
+}

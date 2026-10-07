@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Fixture logo: loaded with <img>, so capture must fetch it and turn it into a vector -->
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+	<rect width="40" height="40" rx="10" fill="#3b5bdb"/>
+	<path d="M12 28V12h16v4H16v3h10v4H16v5z" fill="#fff"/>
+	<circle cx="30" cy="28" r="3" fill="#ffd43b"/>
+</svg>
