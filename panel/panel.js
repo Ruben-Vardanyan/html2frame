@@ -335,6 +335,7 @@ function renderScreens() {
 			const keys = [...box.querySelectorAll('input:checked')].map(x => x.value);
 			project.screens = keys.concat(custom);
 			markDirty();
+			renderPages(); // the pages' screen choices follow the project's sizes
 		};
 		box.append(el('label', {class: 'screen'}, cb, el('span', {}, el('b', {}, p.label), el('small', {}, p.width + ' × ' + p.height + (p.mobile ? ' · touch' : '')))));
 	}
@@ -703,6 +704,7 @@ function renderPages() {
 				delete p.steps;
 				ta.style.borderColor = '';
 				markDirty();
+				refreshTags();
 				return;
 			}
 			try {
@@ -714,21 +716,43 @@ function renderPages() {
 			} catch (e) {
 				ta.style.borderColor = 'var(--danger)';
 			}
+			refreshTags();
 		};
-		stepsRow.append(el('td'), el('td', {colspan: 5}, el('div', {class: 'muted small'}, 'Steps before the capture (click, fill, select, check, press, hover, wait, waitFor, waitForUrl, eval, reload; see docs/PLAN.md). Steps starting with "goto" replace the address.'), ta));
-		const tags = [];
-		if (p.similar && p.similar.length) tags.push(el('span', {class: 'tag', title: p.similar.slice(0, 10).join('\n')}, '+' + p.similar.length + ' similar'));
-		if (p.steps) tags.push(el('span', {class: 'tag'}, 'steps'));
-		if (p.screens) tags.push(el('span', {class: 'tag', title: 'Only on: ' + p.screens.join(', ')}, 'some screens'));
-		if (p.variants) tags.push(el('span', {class: 'tag', title: 'Only for: ' + p.variants.join(', ')}, 'some variants'));
+		// screens: none ticked = every screen of the project; e.g. a "menu open" state only where there is a burger
+		const screenBox = el('div', {class: 'page-screens'});
+		for (const o of pageScreenOptions(p)) {
+			const cb = el('input', {type: 'checkbox', value: o.id, checked: !!(p.screens && p.screens.includes(o.id))});
+			cb.onchange = () => {
+				const on = [...screenBox.querySelectorAll('input:checked')].map(x => x.value);
+				if (on.length) p.screens = on; else delete p.screens;
+				markDirty();
+				refreshTags();
+			};
+			screenBox.append(el('label', {class: 'chip'}, cb, ' ' + o.label));
+		}
+		stepsRow.append(el('td'), el('td', {colspan: 5},
+			el('div', {class: 'muted small'}, 'Steps before the capture (click, fill, select, check, press, hover, wait, waitFor, waitForUrl, eval, reload; see docs/PLAN.md). Steps starting with "goto" replace the address.'), ta,
+			el('div', {class: 'muted small page-screens-label'}, 'Screens for this page (none ticked = all of them). A state that clicks a burger button only works on the sizes where the burger shows.'),
+			screenBox));
+		const tagBox = el('span', {class: 'tags'});
+		const more = el('button', {class: 'icon-btn', type: 'button', title: 'Steps and screens for this page', onclick: () => { stepsRow.hidden = !stepsRow.hidden; }}, '⋯');
+		function refreshTags() {
+			const tags = [];
+			if (p.similar && p.similar.length) tags.push(el('span', {class: 'tag', title: p.similar.slice(0, 10).join('\n')}, '+' + p.similar.length + ' similar'));
+			if (p.steps) tags.push(el('span', {class: 'tag'}, 'steps'));
+			if (p.screens) tags.push(el('span', {class: 'tag', title: 'Only on: ' + p.screens.join(', ')}, 'some screens'));
+			if (p.variants) tags.push(el('span', {class: 'tag', title: 'Only for: ' + p.variants.join(', ')}, 'some variants'));
+			tagBox.replaceChildren(...tags);
+			more.className = 'icon-btn' + (p.steps || p.screens ? ' on' : '');
+		}
+		refreshTags();
 		tr.append(
 			el('td', {class: 'c-check'}, include),
 			el('td', {}, text('name', 'Name')),
 			el('td', {}, text('path', '/page.html')),
 			el('td', {}, text('group', 'Pages')),
 			el('td', {}, acc),
-			el('td', {class: 'c-more'}, tags,
-				el('button', {class: 'icon-btn' + (p.steps ? ' on' : ''), type: 'button', title: 'Steps before the capture (click, fill…)', onclick: () => { stepsRow.hidden = !stepsRow.hidden; }}, '⋯'),
+			el('td', {class: 'c-more'}, tagBox, more,
 				el('button', {class: 'icon-btn', type: 'button', title: 'Duplicate as a new state (e.g. "menu open")', onclick: () => { pages.splice(i + 1, 0, Object.assign(JSON.parse(JSON.stringify(p)), {name: (p.name || 'Page') + ' — state', steps: p.steps || []})); markDirty(); renderPages(); }}, '⧉'),
 				el('button', {class: 'icon-btn danger', type: 'button', title: 'Remove from the list', onclick: () => { pages.splice(i, 1); markDirty(); renderPages(); }}, '×')));
 		rows.append(tr, stepsRow);
@@ -737,6 +761,22 @@ function renderPages() {
 	$('noPages').hidden = pages.length > 0;
 	updateAllBox();
 	updateSummary();
+}
+
+// The screens a page can be limited to: the project's sizes (a phone or tablet means both orientations), plus any
+// other id already in the page (e.g. "tablet-portrait" written by hand), so saving keeps it.
+function pageScreenOptions(p) {
+	const out = [];
+	for (const s of project.screens || []) {
+		if (typeof s === 'object') {
+			out.push({id: (s.name || 'custom').toLowerCase().replace(/\s+/g, '-'), label: s.name || 'Custom'});
+		} else {
+			const key = s.split(':')[0];
+			if (info.presets[key]) out.push({id: key, label: info.presets[key].label});
+		}
+	}
+	for (const id of p.screens || []) if (!out.some(o => o.id === id)) out.push({id, label: id});
+	return out;
 }
 
 function updateAllBox() {
@@ -781,24 +821,35 @@ function variantCount() {
 	return (project.variants || []).length || 1;
 }
 
-function screenCount() {
-	let n = 0;
+// the screens a capture makes, as src/screens.js resolves them: [{id, preset}] ("phone-portrait", preset "phone")
+function resolvedScreens() {
+	const out = [];
 	for (const s of project.screens && project.screens.length ? project.screens : ['desktop']) {
-		if (typeof s === 'object') n++;
-		else {
-			const [key, forced] = s.split(':');
-			const p = info.presets[key];
-			n += p && p.mobile && !forced && project.orientation === 'both' ? 2 : 1;
+		if (typeof s === 'object') {
+			const id = (s.name || 'custom').toLowerCase().replace(/\s+/g, '-');
+			out.push({id, preset: id});
+			continue;
 		}
+		const [key, forced] = s.split(':');
+		const p = info.presets[key];
+		if (!p || !p.mobile) {
+			out.push({id: key, preset: key});
+			continue;
+		}
+		const orients = forced ? [forced] : project.orientation === 'both' ? ['portrait', 'landscape'] : [project.orientation || 'portrait'];
+		for (const o of orients) out.push({id: key + '-' + o, preset: key});
 	}
-	return n;
+	return out;
 }
 
 function updateSummary() {
 	if (!project) return;
-	const pages = (project.pages || []).filter(p => !p.skip).length;
-	const s = screenCount(), v = variantCount();
-	$('captureSummary').textContent = pages + ' page(s) × ' + s + ' screen(s)' + (v > 1 ? ' × ' + v + ' variants' : '') + ' ≈ ' + pages * s * v + ' frames';
+	const list = (project.pages || []).filter(p => !p.skip);
+	const pages = list.length;
+	const screens = resolvedScreens(), s = screens.length, v = variantCount();
+	// pages limited to some screens make fewer frames
+	const frames = list.reduce((n, p) => n + (p.screens ? screens.filter(x => p.screens.includes(x.id) || p.screens.includes(x.preset)).length : s), 0) * v;
+	$('captureSummary').textContent = pages + ' page(s) × ' + s + ' screen(s)' + (v > 1 ? ' × ' + v + ' variants' : '') + ' ≈ ' + frames + ' frames';
 	$('captureBtn').disabled = busy || !pages;
 }
 

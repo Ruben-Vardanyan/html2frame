@@ -20,11 +20,11 @@ the browser falls back to system fonts and sizes change slightly.
 | `typography.html` | Weights 300–800, italic, sizes, transform, decoration, letter-spacing, line heights, alignment, mixed runs, `<br>`, `pre`, nowrap, ellipsis, a missing font family, Armenian/Cyrillic/Greek, the dram sign, emoji |
 | `boxes.html` | Borders (per side, dashed, dotted), radii (per corner, 50 %, pill), shadows (multiple, spread, inset), opacity, clipping, gradients (angles, `to …`, turn, hard stops, transparent, two layers, radial), background images (cover, contain, stretch, WebP, positioned icons, data: SVG, pattern) |
 | `images.html` | `<img>` PNG, JPEG, WebP, GIF, SVG file, data: SVG and GIF, a missing file (warning), object-fit, image radius, `<picture>` per screen, lazy images far down |
-| `forms.html` | Values, placeholders (with colour), password dots, number, date, disabled, custom and native selects, textareas, native checkboxes/radios, toggles (appearance: none), range (skipped), buttons. States: errors after submit, a fixed modal dialog |
+| `forms.html` | Values, placeholders (with colour), a search field with an icon in its text-indent, password dots, number, date, disabled, custom and native selects, textareas, native checkboxes/radios, toggles (appearance: none), range (skipped), buttons. States: errors after submit, a fixed modal dialog |
 | `product.html?id=1…4` | A page that needs its `?query`; breadcrumbs with ::before, gallery, colour radios, custom select, table |
 | `login.html` | Any e-mail and any non-empty password sign in (localStorage); nothing is checked |
 | `account.html` | Needs a login (otherwise redirects to `login.html?next=…`, reported as a warning); stats, gradient progress bars, zebra table, badges |
-| `edge-cases.html` | Known limits, each card saying what Figma should show today: hidden elements, counters, list markers, z-index paint order (also inside a plain wrapper and in a flex row), transforms, text-shadow/blend/filter, clip-path, `<use>` sprites, canvas/video/iframe, columns, vertical text, animation, fixed elements, details/summary |
+| `edge-cases.html` | Known limits, each card saying what Figma should show today: hidden elements, counters, list markers, z-index paint order (also inside a plain wrapper, on a wrapper with no size, and in a flex row), a collapsed panel (max-height 0, overflow hidden), links and bold words inside a wrapping paragraph, generic font families, a WebP named `.png` (mirrored, upside down), transforms, text-shadow/blend/filter, clip-path, `<use>` sprites, canvas/video/iframe, columns, vertical text, animation, fixed elements, details/summary |
 
 ## Variants and states
 

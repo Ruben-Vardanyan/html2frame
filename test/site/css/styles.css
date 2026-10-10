@@ -306,9 +306,17 @@ html[data-theme="dark"] .color-alpha { color: rgba(233, 236, 243, .45); }
 .esc-wrap { height: 20px; } /* a frame of its own in Figma, holding the panel */
 .esc-panel { position: absolute; left: 0; top: 0; width: 110px; height: 70px; z-index: 5; background: #2f9e44; color: #fff; font-size: 12px; padding: 6px; border-radius: 8px; }
 .esc-later { position: relative; margin-left: 50px; padding: 30px 8px 8px; background: #868e96; color: #fff; font-size: 12px; border-radius: 8px; } /* under .esc-panel in the browser */
+.esc-zero { position: absolute; left: 0; top: 0; height: 0; z-index: 6; } /* no frame of its own */
+.esc-panel-static { position: static; }
+.collapsed { max-height: 0; overflow: hidden; }
 .z-row { display: flex; gap: 8px; }
 .z-row > div { flex: 1; height: 50px; border-radius: 8px; background: #dbe4ff; color: #0e1420; font-size: 12px; padding: 6px; }
 .z-row > .z-lift { position: relative; z-index: 1; background: var(--accent); }
+.mixed { max-width: 300px; margin: 0; font-size: 14px; line-height: 1.5; }
+.mixed .chip { background: var(--accent); color: #fff; border-radius: 6px; padding: 1px 6px; }
+.generic-fonts p { margin: 0 0 4px; font-size: 15px; }
+.mirrored { transform: scaleX(-1); }
+.upside-down { transform: rotate(180deg); }
 .text-shadow { font-size: 28px; font-weight: 800; text-shadow: 2px 2px 0 var(--accent); }
 .blend { background: var(--brand); mix-blend-mode: multiply; color: #fff; padding: 12px; border-radius: 8px; }
 .filter-blur { filter: blur(2px); background: var(--ok); color: #fff; padding: 12px; border-radius: 8px; }

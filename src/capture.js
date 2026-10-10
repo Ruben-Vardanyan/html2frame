@@ -232,9 +232,16 @@ function sniff(buf, contentType) {
 	if (buf.length > 3 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return 'image/png';
 	if (buf.length > 2 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'image/jpeg';
 	if (buf.length > 2 && buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return 'image/gif';
+	// other rasters by their bytes too: a WebP saved as .png is served as image/png, and Figma would get WebP bytes
+	if (buf.length > 11 && buf.toString('latin1', 0, 4) === 'RIFF' && buf.toString('latin1', 8, 12) === 'WEBP') return 'image/webp';
+	if (buf.length > 11 && buf.toString('latin1', 4, 8) === 'ftyp') return /^(avif|avis)$/.test(buf.toString('latin1', 8, 12)) ? 'image/avif' : 'image/heic';
+	if (buf.length > 1 && buf[0] === 0x42 && buf[1] === 0x4d) return 'image/bmp';
+	if (buf.length > 3 && buf[0] === 0 && buf[1] === 0 && buf[2] === 1 && buf[3] === 0) return 'image/x-icon';
 	const head = buf.subarray(0, 1024).toString('utf8');
 	if (/svg/.test(contentType || '') || /<svg[\s>]/i.test(head)) return 'image/svg+xml';
-	return (contentType || 'application/octet-stream').split(';')[0].trim();
+	// never PNG/JPEG/GIF by the header alone (the bytes said otherwise): the browser converts it
+	const type = (contentType || 'application/octet-stream').split(';')[0].trim();
+	return RASTER_OK.test(type) ? 'application/octet-stream' : type;
 }
 
 async function fetchImage(src, context) {
@@ -334,7 +341,10 @@ async function resolveImages(root, page, context, cache, warn) {
 			warn('image not loaded, skipped: ' + short(n.src) + ' (' + e.message + ')');
 			return null;
 		}
-		const base = {n: n.n, x: n.x, y: n.y, w: n.w, h: n.h};
+		// everything the extractor set (transform, abs, opacity, blend, blur…), without the source
+		const base = Object.assign({}, n);
+		delete base.src;
+		delete base.t;
 		if (img.type === 'image/svg+xml') {
 			const svg = await sizeSvg(page, img.buf.toString('utf8'), n.w, n.h);
 			if (svg) return Object.assign({t: 'svg'}, base, {svg});

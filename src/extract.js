@@ -243,9 +243,51 @@
 		return null;
 	}
 
+	// The installed font the browser really draws a generic family with (sans-serif -> Arial on Windows, Helvetica on
+	// macOS), found by comparing text widths; null when no candidate matches. Figma has no generic families.
+	const GENERIC_CANDIDATES = {
+		'sans-serif': ['Arial', 'Helvetica', 'Segoe UI', 'Liberation Sans', 'DejaVu Sans', 'Roboto', 'Noto Sans'],
+		'serif': ['Times New Roman', 'Times', 'Georgia', 'Liberation Serif', 'DejaVu Serif', 'Noto Serif'],
+		'monospace': ['Courier New', 'Consolas', 'Menlo', 'Monaco', 'SF Mono', 'Liberation Mono', 'DejaVu Sans Mono'],
+		'system-ui': ['Segoe UI', 'SF Pro Text', 'SF Pro', 'Helvetica Neue', 'Roboto', 'Ubuntu', 'Cantarell', 'Noto Sans', 'Arial'],
+	};
+	GENERIC_CANDIDATES['-apple-system'] = GENERIC_CANDIDATES['blinkmacsystemfont'] = GENERIC_CANDIDATES['ui-sans-serif'] = GENERIC_CANDIDATES['system-ui'];
+	GENERIC_CANDIDATES['ui-serif'] = GENERIC_CANDIDATES['serif'];
+	GENERIC_CANDIDATES['ui-monospace'] = GENERIC_CANDIDATES['monospace'];
+	const GENERIC_FONT = {};
+	let measureCtx = null;
+	function genericFont(g) {
+		const key = g.toLowerCase();
+		if (!GENERIC_CANDIDATES[key]) return null;
+		if (key in GENERIC_FONT) return GENERIC_FONT[key];
+		measureCtx = measureCtx || document.createElement('canvas').getContext('2d');
+		const probes = ['mmmmmmmmmmlli WAVEy 0123456789', 'The quick brown fox, jumps! iIl1|'];
+		const width = font => probes.map(t => {
+			measureCtx.font = '72px ' + font;
+			return measureCtx.measureText(t).width;
+		}).join(',');
+		const generic = width(key);
+		let found = null;
+		for (const c of GENERIC_CANDIDATES[key]) {
+			// installed: the width stays the same whichever fallback stands behind it
+			const withSerif = width('"' + c + '", serif');
+			if (withSerif === width('"' + c + '", monospace') && withSerif === generic) {
+				found = c;
+				break;
+			}
+		}
+		return (GENERIC_FONT[key] = found);
+	}
+
 	function fontInfo(cs) {
 		// the whole stack: the browser picks per letter (e.g. Armenian from one font, Latin from the next), and so can the plugin
-		const ffs = cs.fontFamily.split(',').map(f => f.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
+		const ffs = [];
+		for (const f of cs.fontFamily.split(',').map(f => f.trim().replace(/^["']|["']$/g, '')).filter(Boolean)) {
+			// a generic family: first the font it stands for here, so Figma gets the same letter widths
+			const real = genericFont(f);
+			if (real && !ffs.includes(real)) ffs.push(real);
+			ffs.push(f);
+		}
 		const ff = ffs[0] || 'Inter';
 		return {
 			ff, ffs, fw: parseInt(cs.fontWeight, 10) || 400, fs: px(cs.fontSize), it: cs.fontStyle === 'italic',
@@ -261,18 +303,43 @@
 		return {x: r.left + scrollX, y: r.top + scrollY, w: r.width, h: r.height};
 	}
 
-	function textNode(text, rects, bound, cs) {
+	// line boxes from client rects: a rect starts a new line when its middle is below the current line
+	function lineGroups(rects) {
+		const rs = [...rects].filter(r => r.width > 0 && r.height > 0).sort((a, c) => a.top - c.top || a.left - c.left);
+		const lines = [];
+		for (const r of rs) {
+			const last = lines[lines.length - 1];
+			if (last && r.top + r.height / 2 < last.bottom) {
+				last.rects.push(r);
+				last.bottom = Math.max(last.bottom, r.bottom);
+				last.left = Math.min(last.left, r.left);
+			} else {
+				lines.push({top: r.top, bottom: r.bottom, left: r.left, rects: [r]});
+			}
+		}
+		return lines;
+	}
+
+	function textNode(text, rects, bound, cs, lineCount) {
 		const f = fontInfo(cs);
 		const b = box(bound);
 		const ts = shadows(cs.textShadow).map(({x, y, blur, c}) => ({x, y, blur, c}));
 		const extra = ts.length ? {ts} : {};
 		// vertical writing (writing-mode: vertical-rl…): one line, turned 90° clockwise by the plugin inside this box
 		if (/^(vertical|sideways)/.test(cs.writingMode)) return Object.assign({t: 't', s: text, x: b.x, y: b.y, w: b.w, h: b.h, al: 'left', multi: false, vt: true}, f, extra);
-		const lines = Math.max(1, new Set([...rects].filter(r => r.width > 0).map(r => Math.round(r.top))).size);
+		const lines = lineCount || Math.max(1, new Set([...rects].filter(r => r.width > 0).map(r => Math.round(r.top))).size);
 		const contentH = rects.length ? rects[0].height : b.h;
 		const y = f.lh ? b.y - (f.lh - contentH) / 2 : b.y;
 		const h = f.lh ? f.lh * lines : b.h;
 		const al = {start: 'left', end: 'right', justify: 'left', '-webkit-center': 'center'}[cs.textAlign] || cs.textAlign;
+		// starts mid-line (after a link, an icon or a badge) and wraps: the box starts at the left edge of the later
+		// lines, and the first line is indented to where it starts (Figma's paragraph indent; it applies to every
+		// paragraph, so not for text with line breaks)
+		if (lines > 1 && al === 'left' && !text.includes('\n')) {
+			const ls = lineGroups(rects);
+			const ind = ls.length > 1 ? ls[0].left - bound.left : 0;
+			if (ind > 0.5) extra.ind = Math.round(ind * 100) / 100;
+		}
 		return Object.assign({t: 't', s: text, x: b.x, y, w: b.w, h, al, multi: lines > 1}, f, extra);
 	}
 
@@ -286,6 +353,66 @@
 		return lefts.sort((a, c) => a - c);
 	}
 
+	// Icon fonts (Font Awesome, Material Icons…): Figma rarely has them, so the glyphs become pictures. Icon text is
+	// all Private Use Area characters, or set in a font named like an icon font (ligature fonts spell words).
+	const ICON_FONT = /awesome|material (icons|symbols)|ionicons|feather|glyphicons|icomoon|fontello|remixicon|bootstrap-icons|lucide|tabler|boxicons|dashicons|octicons|\bicons?\b/i;
+	function isIconText(s, cs) {
+		const t = s.replace(/\s+/g, '');
+		if (!t) return false;
+		if ([...t].every(ch => {
+			const cp = ch.codePointAt(0);
+			return (cp >= 0xe000 && cp <= 0xf8ff) || cp >= 0xf0000;
+		})) return true;
+		const first = cs.fontFamily.split(',')[0].trim().replace(/^["']|["']$/g, '');
+		return ICON_FONT.test(first);
+	}
+
+	// the glyphs drawn on a canvas at 4×, in their colour; the picture grows where the ink spills out of the line box
+	function iconNode(text, bound, cs, el) {
+		try {
+			const S = 4;
+			const ctx = document.createElement('canvas').getContext('2d');
+			const font = cs.fontStyle + ' ' + cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+			ctx.font = font;
+			if ('letterSpacing' in ctx && cs.letterSpacing !== 'normal') ctx.letterSpacing = cs.letterSpacing;
+			const m = ctx.measureText(text);
+			const base = (bound.height - (m.fontBoundingBoxAscent + m.fontBoundingBoxDescent)) / 2 + m.fontBoundingBoxAscent;
+			const left = Math.floor(Math.min(0, -m.actualBoundingBoxLeft)), right = Math.ceil(Math.max(bound.width, m.actualBoundingBoxRight));
+			const top = Math.floor(Math.min(0, base - m.actualBoundingBoxAscent)), bottom = Math.ceil(Math.max(bound.height, base + m.actualBoundingBoxDescent));
+			const w = right - left, h = bottom - top;
+			if (!(w > 0 && h > 0) || !(m.actualBoundingBoxRight + m.actualBoundingBoxLeft > 0)) return null;
+			const canvas = ctx.canvas;
+			canvas.width = Math.ceil(w * S);
+			canvas.height = Math.ceil(h * S);
+			const g = canvas.getContext('2d');
+			g.scale(S, S);
+			g.font = font;
+			if ('letterSpacing' in g && cs.letterSpacing !== 'normal') g.letterSpacing = cs.letterSpacing;
+			g.fillStyle = cs.color;
+			g.textBaseline = 'alphabetic';
+			g.fillText(text, -left, base - top);
+			const b = box(bound);
+			// named after the nearest class (a ::before glyph sits in a span without one): "icon fa-palette"
+			let name = null;
+			for (let p = el, i = 0; p && !name && i < 3; p = p.parentElement, i++) {
+				const cls = (typeof p.className === 'string' ? p.className : '').split(/\s+/)
+					.filter(c => c && !c.startsWith('__h2f') && !/^fa-(solid|regular|brands|light|thin|duotone|sharp|fw|xs|sm|lg|[2-9]?x\d*|spin|pulse)$/.test(c));
+				name = cls.find(c => /^(fa|bi|mdi|ri|ti|bx|icon)-/.test(c)) || cls.find(c => c.includes('-')) || cls[0] || null;
+			}
+			return {t: 'img', n: 'icon' + (name ? ' ' + name : ''), x: b.x + left, y: b.y + top, w, h, data: canvas.toDataURL('image/png').split(',')[1], fit: 'fill'};
+		} catch (e) {
+			return null;
+		}
+	}
+
+	// [start, end) of a text node without the white space CSS collapses at its ends (all of it in pre text)
+	function visibleSpan(raw, cs) {
+		if (/pre/.test(cs.whiteSpace)) return [0, raw.length];
+		const a = raw.search(/[^ \t\n\r\f]/);
+		if (a < 0) return [0, 0];
+		return [a, raw.length - raw.match(/[ \t\n\r\f]*$/)[0].length];
+	}
+
 	// One DOM text node -> text layers: usually one; one per column when the text flows over CSS columns.
 	function textNodes(child, cs) {
 		const raw = child.nodeValue;
@@ -294,9 +421,29 @@
 		range.selectNodeContents(child);
 		const bound = range.getBoundingClientRect();
 		if (bound.width === 0 || bound.height === 0) return [];
+		if (isIconText(raw, cs)) {
+			// measured without the spaces around the glyphs
+			const lead = raw.length - raw.trimStart().length;
+			range.setStart(child, lead);
+			range.setEnd(child, lead + raw.trim().length);
+			const icon = iconNode(raw.trim(), range.getBoundingClientRect(), cs, child.parentElement);
+			if (icon) return [icon];
+			range.selectNodeContents(child);
+		}
 		const rects = range.getClientRects();
 		const cols = columnsOf(rects);
-		if (!cols) return [textNode(clean(raw), rects, bound, cs)];
+		if (!cols) {
+			// measured from the first to the last letter: a space kept between an icon and " Word" is not in the
+			// text, so the box starts where the word does
+			const [a, z] = visibleSpan(raw, cs);
+			if (z > a && (a > 0 || z < raw.length)) {
+				range.setStart(child, a);
+				range.setEnd(child, z);
+				const b = range.getBoundingClientRect();
+				if (b.width > 0 && b.height > 0) return [textNode(clean(raw), range.getClientRects(), b, cs)];
+			}
+			return [textNode(clean(raw), rects, bound, cs)];
+		}
 		// which column each character sits in; the text of a column is one stretch of the string
 		const colAt = [];
 		let cur = 0;
@@ -324,6 +471,137 @@
 			start = end;
 		}
 		return out;
+	}
+
+	// ---- mixed inline text ----------------------------------------------------------------------------
+	// Words with links, bold or coloured words among them (<p>Read the <a>guide</a> first.</p>) become ONE text layer
+	// with styled ranges. Measured piece by piece, a piece that starts mid-line and wraps would start at the
+	// paragraph's left edge in Figma, on top of the words before it.
+
+	// an inline element that only changes how its words look: no box of its own, no icon, only such content inside
+	function isFlowElement(el) {
+		if (el.tagName === 'BR') return true;
+		if (SKIP_TAGS.test(el.tagName) || el.namespaceURI !== 'http://www.w3.org/1999/xhtml') return false;
+		if (/^(img|input|select|textarea|button)$/i.test(el.tagName) || SHOT_TAGS.test(el.tagName.toLowerCase())) return false;
+		const cs = getComputedStyle(el);
+		if (cs.display !== 'inline' || cs.visibility !== 'visible' || parseFloat(cs.opacity) < 1) return false;
+		if (rgba(cs.backgroundColor) || border(cs) || shadows(cs.boxShadow).length || (cs.backgroundImage && cs.backgroundImage !== 'none')) return false;
+		const fx = effectsOf(cs);
+		if (Object.keys(fx.props).length || fx.drop.length || (cs.clipPath && cs.clipPath !== 'none') || cs.textShadow !== 'none') return false;
+		if (cs.verticalAlign !== 'baseline' || /pre/.test(cs.whiteSpace)) return false;
+		const still = p => cs[p] === 'auto' || parseFloat(cs[p]) === 0;
+		if (cs.position !== 'static' && !(cs.position === 'relative' && ['top', 'right', 'bottom', 'left'].every(still))) return false;
+		return [...el.childNodes].every(isFlowNode);
+	}
+
+	function isFlowNode(n) {
+		if (n.nodeType === Node.TEXT_NODE) return !isIconText(n.nodeValue, getComputedStyle(n.parentElement));
+		if (n.nodeType === Node.COMMENT_NODE) return true;
+		return n.nodeType === Node.ELEMENT_NODE && isFlowElement(n);
+	}
+
+	// text pieces and line breaks in order; td: the decoration drawn over it (a link's underline reaches its <b>)
+	function flowPieces(nodes, out, td) {
+		for (const n of nodes) {
+			if (n.nodeType === Node.TEXT_NODE) {
+				out.push({node: n, cs: getComputedStyle(n.parentElement), td});
+			} else if (n.nodeType === Node.ELEMENT_NODE) {
+				if (n.tagName === 'BR') {
+					out.push({br: true});
+					continue;
+				}
+				const own = fontInfo(getComputedStyle(n)).td;
+				flowPieces(n.childNodes, out, own !== 'none' ? own : td);
+			}
+		}
+		return out;
+	}
+
+	const SPACE = /[ \t\n\r\f]/;
+	const STYLE_KEYS = ['ff', 'ffs', 'fw', 'it', 'fs', 'c', 'td', 'tc', 'ls'];
+
+	// consecutive flow nodes -> text layers (one, or several when the text flows over CSS columns)
+	function flowText(nodes) {
+		const pieces = flowPieces(nodes, [], null);
+		const texts = pieces.filter(p => p.node && p.node.nodeValue.trim());
+		if (!texts.length) return [];
+		if (texts.length === 1 && !pieces.some(p => p.br)) {
+			const out = textNodes(texts[0].node, texts[0].cs);
+			if (texts[0].td && texts[0].td !== 'none') for (const n of out) if (n.t === 't' && n.td === 'none') n.td = texts[0].td;
+			return out;
+		}
+		// the merged string, white space collapsed across the pieces, and the piece of each character (UTF-16 units)
+		let s = '';
+		const from = [];
+		pieces.forEach((p, i) => {
+			if (p.br) {
+				while (s.endsWith(' ')) {
+					s = s.slice(0, -1);
+					from.pop();
+				}
+				s += '\n';
+				from.push(from.length ? from[from.length - 1] : i);
+				return;
+			}
+			for (const ch of replaceText(p.node.nodeValue)) {
+				if (SPACE.test(ch)) {
+					if (!s || s.endsWith(' ') || s.endsWith('\n')) continue;
+					s += ' ';
+					from.push(i);
+				} else {
+					s += ch;
+					for (let k = 0; k < ch.length; k++) from.push(i);
+				}
+			}
+		});
+		while (s.endsWith(' ') || s.endsWith('\n')) {
+			s = s.slice(0, -1);
+			from.pop();
+		}
+		// a <br> first: its piece is the next text's
+		for (let k = from.length - 1; k >= 0; k--) if (pieces[from[k]].br && k + 1 < from.length) from[k] = from[k + 1];
+		const range = document.createRange();
+		const rects = [];
+		texts.forEach((p, k) => {
+			range.selectNodeContents(p.node);
+			// spaces at the very start and end are not in the text, so not in the box either
+			const [a, z] = visibleSpan(p.node.nodeValue, p.cs);
+			if (k === 0) range.setStart(p.node, a);
+			if (k === texts.length - 1) range.setEnd(p.node, z);
+			rects.push(...[...range.getClientRects()].filter(r => r.width > 0 && r.height > 0));
+		});
+		if (!rects.length) return [];
+		const lines = lineGroups(rects);
+		const left = Math.min(...rects.map(r => r.left)), top = Math.min(...rects.map(r => r.top));
+		const bound = new DOMRect(left, top, Math.max(...rects.map(r => r.right)) - left, Math.max(...rects.map(r => r.bottom)) - top);
+		const base = texts[0];
+		const node = textNode(s, rects, bound, base.cs, lines.length);
+		const styleOf = p => {
+			const f = fontInfo(p.cs);
+			if (f.td === 'none' && p.td) f.td = p.td;
+			return f;
+		};
+		if (base.td && node.td === 'none') node.td = base.td;
+		// ranges whose style differs from the layer's
+		const baseKey = JSON.stringify(STYLE_KEYS.map(k => node[k]));
+		const runs = [];
+		for (let k = 0; k < from.length;) {
+			let e = k + 1;
+			while (e < from.length && from[e] === from[k]) e++;
+			const st = styleOf(pieces[from[k]]);
+			const key = JSON.stringify(STYLE_KEYS.map(x => st[x]));
+			const prev = runs[runs.length - 1];
+			if (key !== baseKey) {
+				if (prev && prev.e === k && prev.key === key) prev.e = e;
+				else runs.push(Object.assign({s: k, e, key}, ...STYLE_KEYS.map(x => ({[x]: st[x]}))));
+			}
+			k = e;
+		}
+		if (runs.length) node.runs = runs.map(r => {
+			delete r.key;
+			return r;
+		});
+		return [node];
 	}
 
 	// The element a <use> points to: "#id" in this page, or "sprite.svg#id" (same site, fetched once).
@@ -502,11 +780,15 @@
 		if (placeholder) f.c = rgba(getComputedStyle(el, '::placeholder').color) || [0.54, 0.56, 0.64, 1];
 		const lh = f.lh || f.fs * 1.3;
 		const multi = tag === 'textarea';
-		node.ch.push(Object.assign({}, f, {
-			t: 't', s: replaceText(text), x: b.x + pl, y: multi ? b.y + pt : b.y + (b.h - lh) / 2,
-			w: Math.max(1, b.w - pl - pr), h: multi ? b.h - pt * 2 : lh, lh,
-			al: {center: 'center', right: 'right', end: 'right'}[cs.textAlign] || 'left', multi, fixed: true,
-		}));
+		const al = {center: 'center', right: 'right', end: 'right'}[cs.textAlign] || 'left';
+		// text-indent (room for a search icon drawn over the field): one line moves right, a textarea's first line indents
+		const indent = al === 'left' ? Math.max(0, px(cs.textIndent)) : 0;
+		const t = Object.assign({}, f, {
+			t: 't', s: replaceText(text), x: b.x + pl + (multi ? 0 : indent), y: multi ? b.y + pt : b.y + (b.h - lh) / 2,
+			w: Math.max(1, b.w - pl - pr - (multi ? 0 : indent)), h: multi ? b.h - pt * 2 : lh, lh, al, multi, fixed: true,
+		});
+		if (multi && indent > 0.5) t.ind = Math.round(indent * 100) / 100;
+		node.ch.push(t);
 	}
 
 	// 2D matrices as [a, b, c, d, e, f] (CSS matrix() order): x' = a·x + c·y + e, y' = b·x + d·y + f
@@ -659,6 +941,14 @@
 			let key = stack.slice(0, 2);
 			if (!stack[2] && mine.ch) for (const c of mine.ch) if (keyOf(c)[0] > 0 && cmpKey(keyOf(c), key) > 0) key = keyOf(c);
 			if (key[0] || key[1]) KEY.set(mine, key);
+		} else if ((stack[0] || stack[1]) && out.length > start) {
+			// no node of its own (e.g. a fixed menu wrapper with height 0, z-index 6): what it painted carries its
+			// layer, so a drawer inside it still paints over the page. In a stacking context everything does; else
+			// only what would paint lower.
+			const key = stack.slice(0, 2);
+			for (let k = start; k < out.length; k++) {
+				if (stack[2] || cmpKey(keyOf(out[k]), key) < 0) KEY.set(out[k], key);
+			}
 		}
 	}
 
@@ -734,6 +1024,10 @@
 		const visual = !!(bg || bd || sh.length || hasBgImage || Object.keys(effectsOf(cs).props).length || clipPathOf(cs, b.w, b.h));
 		const isControl = /^(input|select|textarea|button)$/.test(tag);
 		const clip = /hidden|clip|auto|scroll/.test(cs.overflowX + cs.overflowY);
+		// collapsed and clipping (a closed panel: max-height 0, overflow hidden): nothing inside shows. It makes no
+		// frame, so without this its content would land in the parent unclipped.
+		const clipX = /hidden|clip|auto|scroll/.test(cs.overflowX), clipY = /hidden|clip|auto|scroll/.test(cs.overflowY);
+		if (!INLINE.test(cs.display) && ((clipY && b.h < 0.5) || (clipX && b.w < 0.5))) return;
 		const isInline = INLINE.test(cs.display) && !visual && !isControl;
 
 		let children = out;
@@ -756,14 +1050,26 @@
 
 		// a closed <details> shows only its summary
 		const closed = tag === 'details' && !el.open;
-		for (const child of el.childNodes) {
-			if (closed && !(child.nodeType === Node.ELEMENT_NODE && child.tagName === 'SUMMARY')) continue;
+		const kids = [...el.childNodes].filter(child => !closed || (child.nodeType === Node.ELEMENT_NODE && child.tagName === 'SUMMARY'));
+		// words and the inline elements among them are one text layer (flowText); not where every piece is laid out on
+		// its own (flex/grid items), in columns, in preformatted or vertical text
+		const merge = !/pre/.test(cs.whiteSpace) && cs.columnCount === 'auto' && cs.columnWidth === 'auto'
+			&& !/flex|grid/.test(cs.display) && !/^(vertical|sideways)/.test(cs.writingMode);
+		for (let i = 0; i < kids.length;) {
+			const child = kids[i];
+			if (merge && isFlowNode(child)) {
+				let j = i + 1;
+				while (j < kids.length && isFlowNode(kids[j])) j++;
+				children.push(...flowText(kids.slice(i, j)));
+				i = j;
+				continue;
+			}
 			if (child.nodeType === Node.TEXT_NODE) {
-				if (!child.nodeValue.trim()) continue;
-				children.push(...textNodes(child, cs));
+				if (child.nodeValue.trim()) children.push(...textNodes(child, cs));
 			} else if (child.nodeType === Node.ELEMENT_NODE) {
 				await walk(child, children);
 			}
+			i++;
 		}
 		if (node) {
 			const lay = autoLayoutOf(cs, node); // "lay", not "al": text nodes use "al" for text-align
