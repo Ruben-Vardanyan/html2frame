@@ -75,8 +75,10 @@ function makeFigma(opts = {}) {
 		let rel = null;
 		Object.defineProperty(n, 'relativeTransform', {get: () => rel, set(m) {
 			if (!Array.isArray(m) || m.length !== 2 || m.some(r => r.length !== 3 || r.some(v => !Number.isFinite(v)))) throw new Error('relativeTransform must be 2×3 numbers');
-			// Figma keeps size out of the matrix: rotation (+ translation) only
-			if (Math.abs(m[0][0] * m[0][0] + m[1][0] * m[1][0] - 1) > 1e-6 || Math.abs(m[0][0] - m[1][1]) > 1e-6 || Math.abs(m[0][1] + m[1][0]) > 1e-6) throw new Error('relativeTransform is not a rotation');
+			// Figma keeps size out of the matrix: rotation, or rotation and a mirror (+ translation) only
+			const rot = Math.abs(m[0][0] - m[1][1]) < 1e-6 && Math.abs(m[0][1] + m[1][0]) < 1e-6;
+			const mirror = Math.abs(m[0][0] + m[1][1]) < 1e-6 && Math.abs(m[0][1] - m[1][0]) < 1e-6;
+			if (Math.abs(m[0][0] * m[0][0] + m[1][0] * m[1][0] - 1) > 1e-6 || !(rot || mirror)) throw new Error('relativeTransform is not a rotation');
 			rel = m;
 		}});
 		Object.defineProperty(n, 'fills', {get: () => fills, set(v) {
@@ -101,6 +103,15 @@ function makeFigma(opts = {}) {
 				if (!loadedFonts.some(x => x.family === f.family && x.style === f.style)) throw new Error('range font not loaded: ' + f.family + ' ' + f.style);
 				n.ranges.push({start, end, font: f, text: chars.slice(start, end)});
 			};
+			// setRangeFontSize, setRangeFills…: recorded in n.styled as [what, start, end, value]
+			n.styled = [];
+			for (const what of ['FontSize', 'Fills', 'TextDecoration', 'TextCase', 'LetterSpacing']) {
+				n['setRange' + what] = (start, end, v) => {
+					if (!(start >= 0 && end > start && end <= chars.length)) throw new Error('bad range ' + start + '-' + end + ' for ' + chars.length + ' chars');
+					if (what === 'Fills') v.forEach(checkPaint);
+					n.styled.push([what, start, end, v]);
+				};
+			}
 		}
 		return n;
 	}
@@ -525,6 +536,25 @@ function synthetic() {
 		assert.strictEqual(frames.scaled.rescaled, 0.7);
 		assert.deepStrictEqual(round(frames.scaled.relativeTransform), [[1, 0, 100], [0, 1, 200]], 'scaled from its top-left corner');
 		assert.deepStrictEqual(round(frames.moved.relativeTransform), [[1, 0, 130], [0, 1, 290]], 'translated');
+	});
+
+	await test('styled ranges (links, bold words) and a first-line indent; a mirrored box', async () => {
+		const env = makeFigma({available: [INTER, ['Arial', ['Regular', 'Bold']]]});
+		const s = 'Very Animate.css Friend and more words that wrap';
+		const data = textFile([{s, ffs: ['Arial', 'sans-serif'], ff: 'Arial', fw: 400, fs: 16, c: [0.8, 0.8, 0.8, 1], td: 'none', multi: true, ind: 120, w: 300, h: 40,
+			runs: [{s: 5, e: 16, ffs: ['Arial', 'sans-serif'], ff: 'Arial', fw: 700, fs: 18, c: [0, 0.6, 1, 1], td: 'underline', tc: 'none', ls: 0}]}]);
+		data.captures[0].root.ch.push({t: 'f', n: 'flipped', x: 400, y: 100, w: 20, h: 20, ch: [], tf: {a: 1, b: 0, c: 0, d: -1, e: 0, f: 0, ox: 10, oy: 10}});
+		const text = await importAll(env, await load(env, [data]), null, 'single');
+		const [t] = textNodes(env);
+		assert.strictEqual(t.fontName.family, 'Arial', 'the real font of sans-serif');
+		assert.deepStrictEqual(t.ranges.map(r => [r.text, r.font.style]), [['Animate.css', 'Bold']]);
+		assert.deepStrictEqual(t.styled.map(x => x.slice(0, 3)), [['FontSize', 5, 16], ['Fills', 5, 16], ['TextDecoration', 5, 16]]);
+		assert.strictEqual(t.styled[2][3], 'UNDERLINE');
+		assert.strictEqual(t.paragraphIndent, 120);
+		let flipped;
+		(function w(n) { if (n.name === 'flipped') flipped = n; (n.children || []).forEach(w); })(env.figma.root.children[0]);
+		assert.deepStrictEqual(flipped.relativeTransform.map(r => r.map(v => Math.round(v * 1000) / 1000 + 0)), [[1, 0, 400], [0, -1, 120]], 'mirrored around its centre');
+		assert(!/not applied/.test(text), text);
 	});
 
 	await test('clip-path → mask first, the frame\'s fill moved under it; vertical text turned 90°', async () => {

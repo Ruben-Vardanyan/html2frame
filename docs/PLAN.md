@@ -169,7 +169,7 @@ files start with a one-line licence notice. Cards:
    text (one `key=value` per line); values starting with `[` or `{` must be valid JSON (marked red otherwise).
 5. **Pages.** "Find pages" (crawl, live log; adds new pages and keeps edited ones; option to include pages
    nothing links to), a table: include, name, address, group, account, tags (similar, steps, some
-   screens/variants), steps (JSON), duplicate as a state, remove; "Add a page".
+   screens/variants), steps (JSON) and the screens the page is captured on (none = all; the frame estimate counts them), duplicate as a state, remove; "Add a page".
 6. **Capture.** Frame estimate (pages × screens × variants), Capture (saves first), progress bar and log
    (SSE), result with failures and "Download JSON", the Figma hint, recent captures (remove one, or all, to the recycle bin / Trash).
 
@@ -254,12 +254,12 @@ building.
    scale 1 (true CSS pixels). The owner accepted this result as passing step 1. (The prototype and the
    InsureNow sample were removed before publishing; they stay in git history.)
 2. **Done.** `test/mock-figma.js` plus plugin v1. Check: the mock imports v1 and prototype files with no
-   errors, and creates the right Figma pages. `node test/mock-figma.js` runs 18 tests: a prototype-format
+   errors, and creates the right Figma pages. `node test/mock-figma.js` runs 19 tests: a prototype-format
    file (`test/prototype-sample.json`, 3 pages cut from the InsureNow sample, which matched the prototype plugin's 3152 frames / 1773 texts / 106 SVGs), the newest `captures/*.json`, a
    synthetic 2 screens × 2 variants file (gradients, image fills, image radius, a rejected image, a missing
    font), the gradient transform, the page-limit fallback, a second import below existing content, and a bad
    file, plus the one-page layout with Sections (D14), its no-Sections fallback, the remembered layout choice, the screen/variant/group selection, dimension lists, fonts per script (Armenian letters: the page's Armenian
-   font, else Calibri, else other installed Armenian fonts), CSS transforms, Auto Layout, and clip-path masks with vertical
+   font, else Calibri, else other installed Armenian fonts), CSS transforms (mirrors too), styled text ranges with a first-line indent, Auto Layout, and clip-path masks with vertical
    text. InsureNow has no gradients or
    background images, so those are only checked synthetically.
    Still to do by the owner: import in the Figma desktop app and compare with the prototype import.

@@ -52,8 +52,8 @@ accept both formats; a prototype file is treated as a single "Desktop" screen.
 | `sh` | drop shadows `[{x, y, blur, spread, c}]` |
 | `op` | opacity 0–1 |
 | `clip` | clip children (CSS overflow ≠ visible) |
-| `ch` | children (frames, text, svg, img), in paint order (last = top). DOM order, except that a child is moved above the siblings it overlaps when CSS paints it later (stacking layers: negative `z-index`, normal flow, positioned with `z-index` auto/0, positive `z-index`). Overlap counts what a child paints outside its own box; a child without a stacking context of its own (e.g. a plain wrapper) ranks as its highest positioned descendant, such as a fixed drawer inside a static header. |
-| `tf` | *(optional)* CSS transform `{a, b, c, d, e, f, ox, oy}`: `matrix(a, b, c, d, e, f)` around the origin `ox, oy` (px from the node's top-left). The node's box and its children are measured **untransformed**; the plugin applies rotation, scale and translate (skew dropped). Also on `svg` and `img`. |
+| `ch` | children (frames, text, svg, img), in paint order (last = top). DOM order, except that a child is moved above the siblings it overlaps when CSS paints it later (stacking layers: negative `z-index`, normal flow, positioned with `z-index` auto/0, positive `z-index`). Overlap counts what a child paints outside its own box; a child without a stacking context of its own (e.g. a plain wrapper) ranks as its highest positioned descendant, such as a fixed drawer inside a static header. An element that makes no node of its own (e.g. a fixed menu wrapper with height 0 and `z-index: 6`) passes its layer to the nodes it painted. |
+| `tf` | *(optional)* CSS transform `{a, b, c, d, e, f, ox, oy}`: `matrix(a, b, c, d, e, f)` around the origin `ox, oy` (px from the node's top-left). The node's box and its children are measured **untransformed**; the plugin applies rotation, scale, mirroring (`scaleX(-1)`) and translate (skew dropped). Also on `svg` and `img`. |
 | `blur` | *(optional)* `filter: blur()` in px (Figma layer blur ≈ 2×). Also on `svg` and `img`. |
 | `bblur` | *(optional)* `backdrop-filter: blur()` in px (Figma background blur ≈ 2×) |
 | `blend` | *(optional)* CSS `mix-blend-mode` (`multiply`, `screen`, …). Also on `svg` and `img`. |
@@ -73,10 +73,13 @@ splits text that flows over CSS columns into one text node per column.
 
 | Field | Meaning |
 |---|---|
-| `s` | characters (whitespace collapsed; `replaceText` applied) |
+| `s` | characters (whitespace collapsed; `replaceText` applied). Words and the plain inline elements among them (`<a>`, `<b>`, `<em>`, `<span>`… without a box of their own) are **one** text layer; `<br>` is `
+`. |
 | `x, y, w, h` | `y` is already corrected for line height |
 | `ff, fw, fs, it` | font family (first in the stack), weight, size, italic |
-| `ffs` | *(v1)* the whole CSS font stack, e.g. `["Noto Sans Armenian", "Inter", "sans-serif"]`. The plugin picks a font per script inside the layer (Armenian, Georgian letters get a font made for them; other letters the first ordinary font), from the fonts installed in Figma. Without it, `[ff]`. |
+| `ffs` | *(v1)* the whole CSS font stack, e.g. `["Noto Sans Armenian", "Inter", "sans-serif"]`. The plugin picks a font per script inside the layer (Armenian, Georgian letters get a font made for them; other letters the first ordinary font), from the fonts installed in Figma. Without it, `[ff]`. A generic family is preceded by the installed font the browser drew it with (`["Arial", "sans-serif"]` on Windows), so Figma gets the same letter widths. |
+| `runs` | *(optional)* ranges styled unlike the layer (a link, bold words): `[{s, e, ff, ffs, fw, it, fs, c, td, tc, ls}]`, `s`–`e` in UTF-16 positions of the text, each with its full style. |
+| `ind` | *(optional)* the text starts mid-line (after a link, an icon or a badge) and wraps: `x` is the left edge of the later lines, and the first line starts `ind` px further right (Figma paragraph indent). |
 | `ts` | *(optional)* `text-shadow`: `[{x, y, blur, c}]` (Figma drop shadows on the text layer) |
 | `vt` | *(optional)* vertical writing (`writing-mode: vertical-*`): one line; `x, y, w, h` is the vertical box and the plugin turns the line 90° clockwise into it |
 | `lh` | line height in px, or `null` = auto |
@@ -86,7 +89,7 @@ splits text that flows over CSS columns into one text node per column.
 | `td` | `none` \| `underline` \| `strike` |
 | `al` | `left` \| `center` \| `right` |
 | `multi` | more than one line → fixed width, auto height |
-| `fixed` | form-control text → fixed width box |
+| `fixed` | form-control text → fixed width box (starts after the field's padding and `text-indent`, e.g. room for a search icon) |
 
 ### `t: "svg"`: vector
 
@@ -100,6 +103,9 @@ resolved (no `currentColor`, no classes).
 | prototype | `{n, x, y, w, h, data (base64), fit}` |
 | v1 capture output | `{n, x, y, w, h, src, fit, r?, tf?, blur?, blend?}`. `canvas`, `video`, `iframe`, `object` and `embed` also become `img` nodes: the extractor marks them (`shot`) and capture fills `data` with a picture of the element (fixed and sticky elements hidden meanwhile). Capture resolves `src` into either `data` (raster, base64), or a `t:"svg"` node when the file is SVG. |
 | `fit` | CSS `object-fit`: `contain` → Figma `FIT`, otherwise `FILL` |
+| icons | Icon-font glyphs (all Private Use Area characters, or a font named like an icon font: Font Awesome, Material Icons…) are drawn by the extractor at 4× in their colour: `{n: "icon fa-palette", x, y, w, h, data, fit}`. Figma rarely has these fonts. |
+
+Capture keeps every field of an `img` node when it resolves `src` (`tf`, `abs`, `blur`, `blend`…). Image types come from the file's bytes, not its name or `Content-Type` (a WebP named `.png` is converted to PNG).
 
 ## Gradient transform (plugin)
 

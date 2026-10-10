@@ -169,12 +169,50 @@ function scriptRuns(s) {
 	return runs.length ? runs : [{start: 0, end: 0, script: null}];
 }
 
-// fonts for a text node: {base, runs: [{start, end, font}]}
+// the text split by style: [{start, end, st}] covering it all; st is the node itself or one of its ranges (n.runs)
+function styleRuns(n) {
+	const len = (n.s || '').length;
+	const out = [];
+	let at = 0;
+	for (const r of (n.runs || []).slice().sort((a, b) => a.s - b.s)) {
+		const s = Math.max(r.s, at), e = Math.min(r.e, len);
+		if (e <= s) continue;
+		if (s > at) out.push({start: at, end: s, st: n});
+		out.push({start: s, end: e, st: r});
+		at = e;
+	}
+	if (at < len || !out.length) out.push({start: at, end: len, st: n});
+	return out;
+}
+
+// fonts for a text node: {base, runs: [{start, end, font}]}, per style range and script
 async function textFonts(n) {
-	const stack = n.ffs && n.ffs.length ? n.ffs : [n.ff || 'Inter'];
-	const runs = scriptRuns(n.s || '');
-	for (const r of runs) r.font = await pickFont(stack, n.fw || 400, !!n.it, r.script);
+	const runs = [];
+	for (const sr of styleRuns(n)) {
+		const st = sr.st;
+		const stack = st.ffs && st.ffs.length ? st.ffs : [st.ff || n.ff || 'Inter'];
+		for (const r of scriptRuns((n.s || '').slice(sr.start, sr.end))) {
+			runs.push({start: sr.start + r.start, end: sr.start + r.end, font: await pickFont(stack, st.fw || 400, !!st.it, r.script)});
+		}
+	}
 	return {base: runs[0].font, runs};
+}
+
+// the ranges' own size, colour, decoration, case and letter spacing (fonts are set with textFonts)
+function applyRuns(t, n, warn) {
+	for (const r of n.runs || []) {
+		const s = Math.max(0, r.s), e = Math.min(r.e, n.s.length);
+		if (e <= s) continue;
+		try {
+			if (r.fs && r.fs !== n.fs) t.setRangeFontSize(s, e, r.fs);
+			if (r.c) t.setRangeFills(s, e, [solid(r.c)]);
+			if (r.td && r.td !== n.td) t.setRangeTextDecoration(s, e, {underline: 'UNDERLINE', strike: 'STRIKETHROUGH'}[r.td] || 'NONE');
+			if (r.tc && r.tc !== n.tc) t.setRangeTextCase(s, e, {upper: 'UPPER', lower: 'LOWER', title: 'TITLE'}[r.tc] || 'ORIGINAL');
+			if ((r.ls || 0) !== (n.ls || 0)) t.setRangeLetterSpacing(s, e, {value: r.ls || 0, unit: 'PIXELS'});
+		} catch (err) {
+			warn('text style not applied on "' + t.name + '": ' + (err && err.message ? err.message : err));
+		}
+	}
 }
 
 async function preloadFonts(node) {
@@ -320,9 +358,11 @@ function applyTransform(node, n, x, y, warn) {
 		}
 		const r = Math.atan2(t.b, t.a), cos = Math.cos(r), sin = Math.sin(r);
 		const ox = t.ox * kx, oy = t.oy * ky; // origin on the scaled node
+		// a mirror (scaleY(-1), scaleX(-1)…: negative determinant) = rotation × flip over the x axis
+		const m = t.a * t.d - t.b * t.c < 0 ? [[cos, sin], [sin, -cos]] : [[cos, -sin], [sin, cos]];
 		node.relativeTransform = [
-			[cos, -sin, x + t.ox - (cos * ox - sin * oy) + t.e],
-			[sin, cos, y + t.oy - (sin * ox + cos * oy) + t.f],
+			[m[0][0], m[0][1], x + t.ox - (m[0][0] * ox + m[0][1] * oy) + t.e],
+			[m[1][0], m[1][1], y + t.oy - (m[1][0] * ox + m[1][1] * oy) + t.f],
 		];
 	} catch (e) {
 		warn('transform not applied on ' + (n.n || 'node') + ': ' + (e && e.message ? e.message : e));
@@ -449,6 +489,8 @@ async function build(parent, n, ox, oy, warn) {
 		t.textDecoration = {underline: 'UNDERLINE', strike: 'STRIKETHROUGH'}[n.td] || 'NONE';
 		t.textAlignHorizontal = {center: 'CENTER', right: 'RIGHT'}[n.al] || 'LEFT';
 		t.name = n.s.length > 40 ? n.s.slice(0, 40) + '…' : n.s;
+		applyRuns(t, n, warn);
+		if (n.ind) t.paragraphIndent = n.ind; // the first line starts mid-line on the page
 		parent.appendChild(t);
 		if (n.multi || n.fixed) {
 			t.textAutoResize = 'HEIGHT';

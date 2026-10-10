@@ -74,6 +74,25 @@ pages drawn by JavaScript.
 - **`scroll-behavior: smooth` survives `scrollTo(0, 0)`.** After scrolling through for lazy images, the smooth
   scroll back up was still running when the page was measured, so sticky headers landed 1–1000 px down the
   page (46 of 108 Fixture frames). Scroll with `behavior: 'instant'` and check `scrollY` is 0 before measuring.
+- **Text that starts mid-line.** One text layer per DOM text node put "… and <b>bold</b> . All tools are free…" in
+  three layers; the last starts after the bold words but wraps, so its box (the union of its lines) begins at the
+  paragraph's left edge and Figma drew its first line over the words before it. Words and plain inline
+  elements are now one layer with styled ranges; text after an icon or a badge gets a first-line indent.
+- **Generic font families.** `font-family: sans-serif` is Arial in Chrome on Windows (Helvetica on macOS), but
+  Figma has no generic families and the plugin used Inter, which is wider: footer links were cut off by their
+  `overflow: hidden` boxes. The extractor finds the real font by comparing canvas text widths.
+- **Icon fonts** (Font Awesome Solid) are rarely installed where Figma runs, and a Private Use Area glyph in
+  Inter is blank. The extractor draws icon glyphs to a canvas (the page's font is loaded there) and sends a PNG.
+- **Wrappers without a size.** A burger menu's `position: fixed; z-index: 6; height: 0` wrapper makes no frame,
+  so its z-index was lost and the open drawer went under the page. Its layer now passes to the nodes inside.
+- **Collapsed panels.** A phone filter panel closed with `max-height: 0; overflow: hidden` has no height, so it
+  made no frame and its content went into the parent unclipped, on top of the results. A clipping element
+  with no height (or width) now paints nothing.
+- **Spaces at the ends of a text node.** `<i class="fa-…"></i> Word`: the space is dropped from the text, but
+  the box was measured from it, so the word sat against the icon in Figma. Boxes are measured from the first
+  to the last letter.
+- **File extensions lie.** A site's `rocket.png` was a WebP; the server said `image/png`, so WebP bytes went to
+  Figma, which showed a grey placeholder. Capture checks the bytes.
 - **Viewport emulation in automation panes** may reset between turns. Re-apply it before each capture and
   check `innerWidth`.
 
@@ -100,6 +119,11 @@ pages drawn by JavaScript.
   Plugin v1 reuses the empty "Page 1" of a new file, and if `createPage()` fails it puts that screen on an
   existing page under a title instead of stopping.
 - **`createImage`** only accepts PNG, JPEG and GIF; capture converts other formats to PNG.
+- **Mirrors.** `relativeTransform` takes a rotation with a flip (`[[1, 0], [0, -1]]` for `scaleY(-1)`); the
+  size stays out of the matrix (`resize` / `rescale`).
+- **Styled ranges** (`setRangeFontName`, `setRangeFills`, `setRangeTextDecoration`…) need every range's font
+  loaded first. `paragraphIndent` indents the first line of every paragraph, so it is not used on text with
+  line breaks.
 
 ## 6. Prototype results
 

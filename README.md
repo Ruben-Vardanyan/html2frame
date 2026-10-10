@@ -101,7 +101,8 @@ as "+N similar".
 
 Untick pages you don't need, rename them, or change their group (each group becomes a row in Figma). The row
 buttons: **⋯** steps before the capture (e.g. `[{"click": ".menu-button"}]` for an open menu, or filling a form
-to show its errors), **⧉** duplicate a page as an extra state, **×** remove. **+ Add a page** adds one by hand.
+to show its errors) and the screen sizes the page is captured on (a "menu open" state only on phones, where the
+burger button shows; none ticked = all), **⧉** duplicate a page as an extra state, **×** remove. **+ Add a page** adds one by hand.
 
 **6. Capture.** Click **Capture** and follow the progress. The estimate shows how many frames you will get.
 Under **Recent captures**, **×** moves one capture file to the Recycle Bin (Trash on macOS) and **Remove all**
@@ -151,13 +152,16 @@ in [`docs/FORMAT.md`](docs/FORMAT.md).
 ## What comes through
 
 - **Layout and boxes:** positions, sizes, background colours, borders (per side, dashed), corner radii, shadows,
-  opacity, clipping, linear gradients, background images, CSS `clip-path` (as masks), rotate/scale/translate
+  opacity, clipping, linear gradients, background images, CSS `clip-path` (as masks), rotate/scale/mirror/translate
   transforms, blur, background blur and blend modes.
 - **Text:** editable text layers with font, weight, size, line height, letter spacing, colour, alignment,
-  decoration, case and text shadow; multi-column text; vertical text. Each script gets a suitable font: for
+  decoration, case and text shadow; a paragraph with links or bold words is one layer with styled ranges;
+  `sans-serif`, `serif` and `monospace` become the font the browser used (e.g. Arial); multi-column text;
+  vertical text. Each script gets a suitable font: for
   Armenian, the site's Armenian font if Figma has it, otherwise Calibri (then other Armenian fonts).
 - **Vectors and images:** inline SVG (including `<use>` sprites) as editable vectors; SVG, PNG, JPEG, GIF and
-  WebP images; canvas, video and iframes as images.
+  WebP images (also when the file name says otherwise); icon fonts such as Font Awesome as images; canvas,
+  video and iframes as images.
 - **Forms:** values, placeholders, password dots, selects, checkboxes, radios and toggles.
 - **Lists and details:** bullets, numbers and the triangles of `<details>`.
 - **Not (yet):** radial gradients, CSS counters, skew transforms, text that overflows its box

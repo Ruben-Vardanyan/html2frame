@@ -71,9 +71,39 @@
 			</div>
 
 			<div class="edge">
+				<h3>z-index on a wrapper with no size</h3>
+				<div class="stage"><div class="esc-zero"><div class="esc-panel esc-panel-static">Drawer in a 0 px high, z-index 6 wrapper</div></div><div class="esc-later">Later content, positioned, no z-index</div></div>
+				<div class="expect">Expected: the green drawer over the grey box. Its wrapper (like a fixed burger menu with height 0) makes no frame, so its z-index passes to the drawer.</div>
+			</div>
+
+			<div class="edge">
 				<h3>z-index in a flex row</h3>
 				<div class="stage"><div class="z-row"><div>A</div><div class="z-lift">B z-index 1</div><div>C</div></div></div>
 				<div class="expect">Expected: A, B, C in this order; the row keeps Auto Layout (the items don't overlap, so their paint order doesn't show).</div>
+			</div>
+
+			<div class="edge">
+				<h3>Links and bold words in a paragraph</h3>
+				<div class="stage"><p class="mixed">A paragraph with <b>bold words</b>, a <a href="#">link that wraps onto the next line</a>, and a <span class="chip">badge</span> after which the text goes on and wraps over more lines.</p></div>
+				<div class="expect">Expected: one text layer from the start to the badge, with the bold words and the link as styled ranges, and one after the badge whose first line starts right of it (paragraph indent). No words on top of each other.</div>
+			</div>
+
+			<div class="edge">
+				<h3>Generic font families</h3>
+				<div class="stage generic-fonts"><p style="font-family:sans-serif">sans-serif text</p><p style="font-family:serif">serif text</p><p style="font-family:monospace">monospace text</p></div>
+				<div class="expect">Expected: the fonts the browser really used (Arial, Times New Roman, Courier New on Windows; Helvetica, Times, Courier on macOS), not Inter, so the words keep their widths.</div>
+			</div>
+
+			<div class="edge">
+				<h3>Image with the wrong extension, mirrored</h3>
+				<div class="stage" style="display:flex;gap:16px"><img src="img/webp-as-png.png" alt="WebP named .png" width="64" height="64"><img class="mirrored" src="img/webp-as-png.png" alt="WebP named .png, mirrored" width="64" height="64"><img class="upside-down" src="img/webp-as-png.png" alt="WebP named .png, upside down" width="64" height="64"></div>
+				<div class="expect">Expected: the same avatar three times (the file is a WebP named .png): as is, mirrored left to right, and upside down.</div>
+			</div>
+
+			<div class="edge">
+				<h3>Collapsed panel</h3>
+				<div class="stage"><button type="button" class="btn">Filters ▾</button><div class="collapsed">Coverage, rating and duration filters, hidden: max-height 0 and overflow hidden, like a closed filter panel on a phone.</div><p style="margin:8px 0 0">Text right after the closed panel.</p></div>
+				<div class="expect">Expected: only the button and the text after it. Nothing of the closed panel's content.</div>
 			</div>
 
 			<div class="edge">
