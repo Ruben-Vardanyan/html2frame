@@ -315,6 +315,19 @@ html[data-theme="dark"] .color-alpha { color: rgba(233, 236, 243, .45); }
 .mixed { max-width: 300px; margin: 0; font-size: 14px; line-height: 1.5; }
 .mixed .chip { background: var(--accent); color: #fff; border-radius: 6px; padding: 1px 6px; }
 .generic-fonts p { margin: 0 0 4px; font-size: 15px; }
+.ring3d { position: relative; width: 150px; height: 110px; transform-style: preserve-3d; transform: perspective(600px) rotateX(24deg); }
+.ring3d-track { position: absolute; inset: 0; transform-style: preserve-3d; }
+.ring3d-track span { position: absolute; left: 50%; top: 50%; width: 40px; height: 30px; margin: -15px 0 0 -20px; border-radius: 6px; background: var(--accent); color: #fff; font-size: 12px; text-align: center; line-height: 30px; transform: rotateY(calc(var(--i) * 60deg)) translateZ(60px); }
+.tilt3d { perspective: 400px; }
+.tilt3d-card { width: 120px; padding: 18px 10px; border-radius: 10px; background: var(--brand); color: #fff; font-size: 13px; transform: rotateY(35deg); box-shadow: 0 8px 18px rgba(0, 0, 0, .25); }
+.grad-head { margin: 0 0 10px; font-size: 24px; font-weight: 800; }
+.grad-text { background: linear-gradient(90deg, #7048e8, #e64980); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.cover-radial { height: 70px; border-radius: 8px; background-image: radial-gradient(circle at 15% 40%, rgba(255, 255, 255, .35) 0 22px, transparent 23px), radial-gradient(circle at 80% 70%, rgba(255, 255, 255, .25) 0 30px, transparent 31px), linear-gradient(120deg, #7048e8, #b197fc 55%, #e5dbff); }
+.cover-z { position: relative; overflow: hidden; height: 60px; border-radius: 8px; background: linear-gradient(90deg, #7048e8, #b197fc); }
+.cover-z-btn { position: absolute; top: 8px; right: 8px; z-index: 2; } /* over .cover-z-note, although the band is under it */
+.cover-z-note { position: relative; width: 120px; margin: -86px 0 0 auto; padding: 6px; border-radius: 6px; background: #868e96; color: #fff; font-size: 12px; }
+.cover-z-avatar { position: relative; width: 56px; height: 56px; margin: -28px 0 0 16px; border-radius: 50%; border: 3px solid #fff; background: #e64980; color: #fff; font-weight: 700; display: grid; place-items: center; }
+.tight-head { margin: 0; font-size: 34px; line-height: 1; letter-spacing: -.05em; }
 .mirrored { transform: scaleX(-1); }
 .upside-down { transform: rotate(180deg); }
 .text-shadow { font-size: 28px; font-weight: 800; text-shadow: 2px 2px 0 var(--accent); }

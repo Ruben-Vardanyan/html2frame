@@ -22,7 +22,7 @@ function checkPaint(p) {
 		['r', 'g', 'b'].forEach(k => finite(p.color[k], 'SOLID color.' + k));
 		return;
 	}
-	if (p.type === 'GRADIENT_LINEAR') {
+	if (p.type === 'GRADIENT_LINEAR' || p.type === 'GRADIENT_RADIAL') {
 		if (!Array.isArray(p.gradientTransform) || p.gradientTransform.length !== 2) throw new Error('gradientTransform must be 2×3');
 		p.gradientTransform.forEach(r => {
 			if (r.length !== 3) throw new Error('gradientTransform must be 2×3');
@@ -365,8 +365,37 @@ function synthetic() {
 		await importAll(env, await load(env, [data]));
 		const [g90, g180] = framesOf(env.figma.root.children[0])[0].children[0].fills;
 		const round = m => m.map(r => r.map(v => Math.round(v * 1e6) / 1e6 + 0));
-		assert.deepStrictEqual(round(g90.gradientTransform), [[1, 0, 0], [0, 1, 0]]);
-		assert.deepStrictEqual(round(g180.gradientTransform), [[0, 1, 0], [-1, 0, 1]]);
+		// the first row is the position along the gradient (the second only has to be across it)
+		assert.deepStrictEqual(round(g90.gradientTransform)[0], [1, 0, 0]);
+		assert.deepStrictEqual(round(g180.gradientTransform)[0], [0, 1, 0]);
+	});
+
+	await test('gradients in px: a corner angle on a wide box, radial circles, a gradient laid out on another box', async () => {
+		const env = makeFigma();
+		const data = synthetic();
+		data.captures = data.captures.slice(0, 1);
+		const hero = data.captures[0].root.ch[0];
+		const {w, h} = hero;
+		const corner = 180 - Math.atan2(h, w) * 180 / Math.PI; // "to bottom right"
+		hero.layers = [
+			{type: 'gradient', angle: corner, stops: [{c: [1, 0, 0, 1], p: 0}, {c: [0, 0, 1, 1], p: 1}]},
+			{type: 'radial', cx: 100, cy: 50, rx: 40, ry: 20, stops: [{c: [1, 1, 1, 1], p: 0}, {c: [1, 1, 1, 0], p: 1}]},
+		];
+		await importAll(env, await load(env, [data]));
+		const [lin, rad] = framesOf(env.figma.root.children[0])[0].children[0].fills;
+		const along = (m, x, y) => m[0][0] * x / w + m[0][1] * y / h + m[0][2];
+		const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-6, a + ' ≠ ' + b);
+		// CSS: the top-left corner is the first colour, the bottom-right one the last, the other two in the middle
+		near(along(lin.gradientTransform, 0, 0), 0);
+		near(along(lin.gradientTransform, w, h), 1);
+		near(along(lin.gradientTransform, w, 0), 0.5);
+		near(along(lin.gradientTransform, 0, h), 0.5);
+		assert.strictEqual(rad.type, 'GRADIENT_RADIAL');
+		const m = rad.gradientTransform;
+		const at = (x, y) => [m[0][0] * x / w + m[0][1] * y / h + m[0][2], m[1][0] * x / w + m[1][1] * y / h + m[1][2]];
+		at(100, 50).forEach(v => near(v, 0.5)); // the centre
+		near(at(140, 50)[0], 1); // rx to the right
+		near(at(100, 70)[1], 1); // ry down
 	});
 
 	await test('page limit (free plan) → falls back to a Section on an existing page and says so', async () => {
@@ -555,6 +584,27 @@ function synthetic() {
 		(function w(n) { if (n.name === 'flipped') flipped = n; (n.children || []).forEach(w); })(env.figma.root.children[0]);
 		assert.deepStrictEqual(flipped.relativeTransform.map(r => r.map(v => Math.round(v * 1000) / 1000 + 0)), [[1, 0, 400], [0, -1, 120]], 'mirrored around its centre');
 		assert(!/not applied/.test(text), text);
+	});
+
+	await test('line breaks: <br> lines never wrap, wrapping text gets room to spare; gradient text', async () => {
+		const env = makeFigma();
+		const stops = [{c: [0.44, 0.28, 0.91, 1], p: 0}, {c: [0.9, 0.29, 0.5, 1], p: 1}];
+		const data = textFile([
+			{s: 'Your creative\nspace.', multi: true, nw: true, x: 100, w: 200, h: 48, al: 'center'},
+			{s: 'words that wrap over lines', multi: true, x: 10, w: 300, h: 48, al: 'right'},
+			{s: 'gradient words', x: 10, w: 98, c: [0, 0, 0, 0], fill: [{type: 'gradient', angle: 90, stops}], fb: {x: 10, y: 80, w: 200, h: 30}},
+		]);
+		await importAll(env, await load(env, [data]), null, 'single');
+		const [br, wrap, grad] = textNodes(env);
+		assert.strictEqual(br.textAutoResize, 'WIDTH_AND_HEIGHT', 'Figma cannot add a break');
+		assert.strictEqual(br.x, 100 + (200 - br.width) / 2, 'centred in its box');
+		assert.strictEqual(wrap.textAutoResize, 'HEIGHT');
+		assert.strictEqual(wrap.width, 309, '3% wider');
+		assert.strictEqual(wrap.x, 1, 'right-aligned: grows to the left');
+		const g = grad.fills[0];
+		assert.strictEqual(g.type, 'GRADIENT_LINEAR', 'the background is the text\'s paint');
+		const m = g.gradientTransform, along = px => m[0][0] * px / grad.width + m[0][2];
+		assert.ok(Math.abs(along(0)) < 1e-6 && Math.abs(along(200) - 1) < 1e-6, 'laid out on the element\'s 200px box, not the text\'s');
 	});
 
 	await test('clip-path → mask first, the frame\'s fill moved under it; vertical text turned 90°', async () => {

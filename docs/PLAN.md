@@ -254,13 +254,13 @@ building.
    scale 1 (true CSS pixels). The owner accepted this result as passing step 1. (The prototype and the
    InsureNow sample were removed before publishing; they stay in git history.)
 2. **Done.** `test/mock-figma.js` plus plugin v1. Check: the mock imports v1 and prototype files with no
-   errors, and creates the right Figma pages. `node test/mock-figma.js` runs 19 tests: a prototype-format
+   errors, and creates the right Figma pages. `node test/mock-figma.js` runs 20 tests: a prototype-format
    file (`test/prototype-sample.json`, 3 pages cut from the InsureNow sample, which matched the prototype plugin's 3152 frames / 1773 texts / 106 SVGs), the newest `captures/*.json`, a
    synthetic 2 screens × 2 variants file (gradients, image fills, image radius, a rejected image, a missing
    font), the gradient transform, the page-limit fallback, a second import below existing content, and a bad
    file, plus the one-page layout with Sections (D14), its no-Sections fallback, the remembered layout choice, the screen/variant/group selection, dimension lists, fonts per script (Armenian letters: the page's Armenian
-   font, else Calibri, else other installed Armenian fonts), CSS transforms (mirrors too), styled text ranges with a first-line indent, Auto Layout, and clip-path masks with vertical
-   text. InsureNow has no gradients or
+   font, else Calibri, else other installed Armenian fonts), CSS transforms (mirrors too), styled text ranges with a first-line indent, Auto Layout, clip-path masks with vertical
+   text, gradients in px (corner angles on wide boxes, radial circles), and line breaks (auto width for <br> lines, room to spare when wrapping) with gradient text. InsureNow has no gradients or
    background images, so those are only checked synthetically.
    Still to do by the owner: import in the Figma desktop app and compare with the prototype import.
 3. **Done.** Screens. Check: `--screens phone,tablet --orientation both` gives widths 390/844/768/1024, and the

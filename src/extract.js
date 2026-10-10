@@ -86,30 +86,41 @@
 		return {w, c, dash: /dashed|dotted/.test(cs['border' + sides[i] + 'Style'])};
 	}
 
-	// CSS angle of a linear-gradient: "135deg", "to right", "to top left", default 180deg
-	function gradientAngle(first) {
-		const deg = first.match(/^(-?[\d.]+)(deg|turn|rad)$/);
-		if (deg) return deg[2] === 'turn' ? parseFloat(deg[1]) * 360 : deg[2] === 'rad' ? parseFloat(deg[1]) * 180 / Math.PI : parseFloat(deg[1]);
+	// CSS angle of a linear-gradient: "135deg", "to right", "to top left", default 180deg. A corner depends on the
+	// box: "to top right" makes the top-left and bottom-right corners the same colour.
+	function gradientAngle(first, w, h) {
+		const deg = first.match(/^(-?[\d.]+)(deg|turn|rad|grad)$/);
+		if (deg) return deg[2] === 'turn' ? parseFloat(deg[1]) * 360 : deg[2] === 'rad' ? parseFloat(deg[1]) * 180 / Math.PI : deg[2] === 'grad' ? parseFloat(deg[1]) * 0.9 : parseFloat(deg[1]);
 		if (!first.startsWith('to ')) return null;
 		const k = first.slice(3).split(/\s+/).sort().join(' ');
-		return {'top': 0, 'right': 90, 'bottom': 180, 'left': 270, 'right top': 45, 'bottom right': 135, 'bottom left': 225, 'left top': 315}[k] ?? 180;
+		const c = w > 0 && h > 0 ? Math.atan2(h, w) * 180 / Math.PI : 45;
+		return {'top': 0, 'right': 90, 'bottom': 180, 'left': 270, 'right top': c, 'bottom right': 180 - c, 'bottom left': 180 + c, 'left top': 360 - c}[k] ?? 180;
 	}
 
-	function parseLinearGradient(fn) {
-		const inner = fn.replace(/^(repeating-)?linear-gradient\(/, '').replace(/\)$/, '');
-		const parts = splitTop(inner);
-		let angle = gradientAngle(parts[0]);
-		if (angle === null) angle = 180; else parts.shift();
-		const stops = [];
-		for (const p of parts) {
-			const col = p.match(/rgba?\([^)]+\)|transparent/);
-			if (!col) continue;
-			const pos = p.replace(col[0], '').trim().match(/(-?[\d.]+)%/);
-			stops.push({c: rgbaAny(col[0]), p: pos ? parseFloat(pos[1]) / 100 : null});
+	const STOP_COLOR = /(rgba?|hsla?)\([^)]*\)|transparent/;
+	// "in oklab", "in hsl longer hue": the colour space to blend in; Figma blends in sRGB anyway
+	const noSpace = s => s.replace(/\bin [a-z-]+( [a-z]+ hue)?/, '').trim();
+
+	// colour stops -> [{c, p}], p from 0 to 1 along a gradient line `len` px long. Positions in % or px, two positions
+	// ("red 0 96px": a hard-edged band), missing ones spread evenly, never going back (as CSS clamps them).
+	function colorStops(parts, len) {
+		let stops = [];
+		for (const part of parts) {
+			const col = part.match(STOP_COLOR);
+			if (!col) continue; // a colour hint ("30%")
+			const c = rgbaAny(col[0]);
+			if (!c) continue;
+			const pos = [];
+			for (const t of part.replace(col[0], '').trim().split(/\s+/).filter(Boolean)) {
+				if (t.endsWith('%')) pos.push(parseFloat(t) / 100);
+				else if (/^-?[\d.]+(px)?$/.test(t) && len > 0) pos.push(parseFloat(t) / len);
+			}
+			if (!pos.length) stops.push({c, p: null});
+			for (const p of pos.slice(0, 2)) stops.push({c, p});
 		}
 		if (stops.length < 2) return null;
-		stops.forEach((s, i) => { if (s.p === null) s.p = i === 0 ? 0 : i === stops.length - 1 ? 1 : null; });
-		// fill missing positions evenly between known neighbours
+		if (stops[0].p === null) stops[0].p = 0;
+		if (stops[stops.length - 1].p === null) stops[stops.length - 1].p = 1;
 		for (let i = 1; i < stops.length - 1; i++) {
 			if (stops[i].p !== null) continue;
 			let j = i;
@@ -117,7 +128,90 @@
 			const a = stops[i - 1].p, b = stops[j].p, n = j - i + 1;
 			for (let k = i; k < j; k++) stops[k].p = a + (b - a) * (k - i + 1) / n;
 		}
-		return {type: 'gradient', angle, stops};
+		for (let i = 1; i < stops.length; i++) stops[i].p = Math.max(stops[i].p, stops[i - 1].p);
+		// a fully transparent stop takes its neighbour's colour: CSS fades in premultiplied alpha, so a fade to
+		// "transparent" has no grey edge. Between two different colours it becomes two stops.
+		const out = [];
+		stops.forEach((s, i) => {
+			if (s.c[3] > 0) return out.push(s);
+			const a = i > 0 && stops[i - 1].c[3] > 0 ? stops[i - 1].c : null;
+			const b = i < stops.length - 1 && stops[i + 1].c[3] > 0 ? stops[i + 1].c : null;
+			if (a) out.push({c: [a[0], a[1], a[2], 0], p: s.p});
+			if (b && (!a || [0, 1, 2].some(k => a[k] !== b[k]))) out.push({c: [b[0], b[1], b[2], 0], p: s.p});
+			if (!a && !b) out.push(s);
+		});
+		stops = out;
+		// stops outside 0..1 (a band starting before the line, a circle larger than the ray): the colour at 0 and 1
+		if (stops[0].p >= 0 && stops[stops.length - 1].p <= 1) return stops;
+		const at = p => {
+			if (p <= stops[0].p) return stops[0].c;
+			for (let i = 1; i < stops.length; i++) {
+				if (p > stops[i].p) continue;
+				const a = stops[i - 1], b = stops[i], t = b.p > a.p ? (p - a.p) / (b.p - a.p) : 1;
+				return a.c.map((v, k) => v + (b.c[k] - v) * t);
+			}
+			return stops[stops.length - 1].c;
+		};
+		return [{c: at(0), p: 0}, ...stops.filter(s => s.p > 0 && s.p < 1), {c: at(1), p: 1}];
+	}
+
+	// linear-gradient in a w×h box: px stops are measured along the CSS gradient line (|w·sin| + |h·cos| long)
+	function parseLinearGradient(fn, w, h) {
+		const inner = fn.replace(/^(repeating-)?linear-gradient\(/, '').replace(/\)$/, '');
+		const parts = splitTop(inner);
+		let angle = 180;
+		if (!STOP_COLOR.test(parts[0])) {
+			const a = gradientAngle(noSpace(parts[0]), w, h);
+			if (a !== null) angle = a;
+			parts.shift();
+		}
+		const t = angle * Math.PI / 180;
+		const stops = colorStops(parts, Math.abs(w * Math.sin(t)) + Math.abs(h * Math.cos(t)));
+		return stops ? {type: 'gradient', angle, stops} : null;
+	}
+
+	// radial-gradient([circle|ellipse] [size] [at x y], stops) in a w×h box -> centre and radii in px from the box's
+	// top-left corner; stops along the horizontal radius
+	function parseRadialGradient(fn, w, h) {
+		const inner = fn.replace(/^(repeating-)?radial-gradient\(/, '').replace(/\)$/, '');
+		const parts = splitTop(inner);
+		const cfg = STOP_COLOR.test(parts[0]) ? '' : noSpace(parts.shift());
+		const [shapeSize, at] = cfg.split(/\bat\b/).map(s => s.trim());
+		const len = (v, ref) => (v.endsWith('%') ? parseFloat(v) / 100 * ref : parseFloat(v));
+		const KW = {left: 0, top: 0, center: 50, right: 100, bottom: 100};
+		let cx = w / 2, cy = h / 2;
+		if (at) {
+			let [a, b] = at.split(/\s+/);
+			if (b === undefined) b = 'center';
+			if (/^(top|bottom)$/.test(a) || /^(left|right)$/.test(b)) [a, b] = [b, a];
+			cx = a in KW ? KW[a] / 100 * w : len(a, w);
+			cy = b in KW ? KW[b] / 100 * h : len(b, h);
+		}
+		const words = (shapeSize || '').split(/\s+/).filter(Boolean);
+		const sizes = words.filter(x => /^-?[\d.]/.test(x));
+		const circle = words.includes('circle') || (!words.includes('ellipse') && sizes.length === 1);
+		let rx, ry;
+		if (sizes.length) {
+			rx = len(sizes[0], w);
+			ry = circle ? rx : len(sizes[1] || sizes[0], h);
+		} else {
+			const kw = words.find(x => /^(closest|farthest)-(side|corner)$/.test(x)) || 'farthest-corner';
+			const pick = kw.startsWith('closest') ? Math.min : Math.max;
+			const dx = pick(Math.abs(cx), Math.abs(w - cx)), dy = pick(Math.abs(cy), Math.abs(h - cy));
+			if (kw.endsWith('side')) {
+				rx = circle ? pick(dx, dy) : dx;
+				ry = circle ? rx : dy;
+			} else if (circle) {
+				rx = ry = Math.hypot(dx, dy);
+			} else {
+				// the ellipse of the matching *-side size, grown until it passes through the corner
+				rx = dx * Math.SQRT2;
+				ry = dy * Math.SQRT2;
+			}
+		}
+		if (!(rx > 0 && ry > 0)) return null;
+		const stops = colorStops(parts, rx);
+		return stops ? {type: 'radial', cx, cy, rx, ry, stops} : null;
 	}
 
 	// "calc(100% - 14px)", "50%", "12px" -> offset of an image of size `img` inside a box of `box`
@@ -151,8 +245,8 @@
 		const fills = [];
 		for (let i = 0; i < layers.length; i++) {
 			const layer = layers[i];
-			if (/linear-gradient\(/.test(layer)) {
-				const g = parseLinearGradient(layer);
+			if (/(linear|radial)-gradient\(/.test(layer)) {
+				const g = /radial-gradient\(/.test(layer) ? parseRadialGradient(layer, b.w, b.h) : parseLinearGradient(layer, b.w, b.h);
 				if (g) fills.push(g);
 				continue;
 			}
@@ -293,7 +387,8 @@
 			ff, ffs, fw: parseInt(cs.fontWeight, 10) || 400, fs: px(cs.fontSize), it: cs.fontStyle === 'italic',
 			lh: cs.lineHeight === 'normal' ? null : px(cs.lineHeight),
 			ls: cs.letterSpacing === 'normal' ? 0 : px(cs.letterSpacing),
-			c: rgba(cs.color) || [0, 0, 0, 1],
+			// the letters' paint: -webkit-text-fill-color when set (transparent for gradient text), else color
+			c: rgbaAny(cs.webkitTextFillColor || cs.color) || [0, 0, 0, 1],
 			tc: {uppercase: 'upper', lowercase: 'lower', capitalize: 'title'}[cs.textTransform] || 'none',
 			td: /underline/.test(cs.textDecorationLine) ? 'underline' : /line-through/.test(cs.textDecorationLine) ? 'strike' : 'none',
 		};
@@ -340,6 +435,8 @@
 			const ind = ls.length > 1 ? ls[0].left - bound.left : 0;
 			if (ind > 0.5) extra.ind = Math.round(ind * 100) / 100;
 		}
+		// every line ends at a <br> or \n, none wraps: Figma must not wrap it either (its fonts can be a bit wider)
+		if (lines > 1 && text.split('\n').length === lines) extra.nw = true;
 		return Object.assign({t: 't', s: text, x: b.x, y, w: b.w, h, al, multi: lines > 1}, f, extra);
 	}
 
@@ -704,7 +801,7 @@
 	// right-aligned like the browser's; inside markers (e.g. <summary>) start the line.
 	function materialiseMarkers(root) {
 		for (const el of [...root.querySelectorAll('*')]) {
-			if (el.closest('svg')) continue;
+			if (el.closest('svg') || in3d(el)) continue;
 			const cs = getComputedStyle(el);
 			if (cs.display !== 'list-item' || cs.listStyleType === 'none' || cs.listStyleImage !== 'none') continue;
 			const text = markerText(el, cs.listStyleType);
@@ -729,12 +826,84 @@
 	}
 
 	// ::before / ::after -> real spans, so they can be measured like anything else
+	// ---- CSS 3D --------------------------------------------------------------------------------------
+	// Figma has no perspective: a 3D scene (preserve-3d, perspective, rotateX/Y) cannot be rebuilt from flat layers.
+	// Its outermost element becomes ONE picture: capture.js photographs just that element and what is inside it, on
+	// a transparent background (`iso`). Found before the pseudo-elements are turned into spans, so the scene keeps
+	// its real ::before/::after (back faces…).
+	let ROOTS_3D = new Set();
+	const tiny = v => Math.abs(v) < 1e-6;
+	function find3dRoots(root) {
+		const roots = new Set();
+		for (const el of root.querySelectorAll('*')) {
+			if (el.closest('svg') && el.tagName.toLowerCase() !== 'svg') continue;
+			const cs = getComputedStyle(el);
+			if (!cs.transform || cs.transform === 'none') continue;
+			let m;
+			try {
+				m = new DOMMatrix(cs.transform);
+			} catch (e) {
+				continue;
+			}
+			const parent = el.parentElement ? getComputedStyle(el.parentElement) : null;
+			const preserve = parent && parent.transformStyle === 'preserve-3d';
+			const persp = parent && parent.perspective && parent.perspective !== 'none';
+			// projective (perspective() in the transform); turned out of the screen plane inside a 3D scene; moved in
+			// depth or turned under a parent's perspective
+			const projective = !tiny(m.m14) || !tiny(m.m24) || !tiny(m.m44 - 1);
+			const turned = !tiny(m.m13) || !tiny(m.m23) || !tiny(m.m31) || !tiny(m.m32);
+			if (!(projective || (turned && preserve) || ((turned || !tiny(m.m43)) && persp))) continue;
+			// the scene starts where the preserve-3d chain does
+			let r = el;
+			while (r.parentElement && r.parentElement !== document.body && getComputedStyle(r.parentElement).transformStyle === 'preserve-3d') r = r.parentElement;
+			roots.add(r);
+		}
+		// only the outermost
+		for (const r of [...roots]) {
+			for (let p = r.parentElement; p; p = p.parentElement) if (roots.has(p)) { roots.delete(r); break; }
+		}
+		return roots;
+	}
+	function in3d(el) {
+		for (let p = el; p; p = p.parentElement) if (ROOTS_3D.has(p)) return true;
+		return false;
+	}
+
+	// the picture's box: the scene and everything in it as drawn (bounding rects are already projected), plus room
+	// for shadows, within the page
+	function scene3d(el, out) {
+		let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, pad = 0;
+		for (const e of [el, ...el.querySelectorAll('*')]) {
+			const r = e.getBoundingClientRect();
+			if (r.width <= 0 && r.height <= 0) continue;
+			x0 = Math.min(x0, r.left);
+			y0 = Math.min(y0, r.top);
+			x1 = Math.max(x1, r.right);
+			y1 = Math.max(y1, r.bottom);
+			const cs = getComputedStyle(e);
+			for (const s of shadows(cs.boxShadow)) pad = Math.max(pad, Math.abs(s.x) + s.blur + s.spread, Math.abs(s.y) + s.blur + s.spread);
+			const blur = (cs.filter || '').match(/blur\(([\d.]+)px\)/);
+			if (blur) pad = Math.max(pad, parseFloat(blur[1]) * 3);
+		}
+		if (!(x1 > x0 && y1 > y0)) return;
+		pad = Math.min(Math.ceil(pad), 200);
+		const W = document.documentElement.scrollWidth, H = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+		const x = Math.max(0, Math.floor(x0 + scrollX - pad)), y = Math.max(0, Math.floor(y0 + scrollY - pad));
+		const w = Math.min(W, Math.ceil(x1 + scrollX + pad)) - x, h = Math.min(H, Math.ceil(y1 + scrollY + pad)) - y;
+		if (w <= 0 || h <= 0) return;
+		const id = String(++SHOTS);
+		el.setAttribute('data-h2f-iso', id);
+		const tag = el.tagName.toLowerCase();
+		const cls = (typeof el.className === 'string' ? el.className : '').trim().split(/\s+/).filter(c => c && !c.startsWith('__h2f'))[0];
+		out.push(own(el, {t: 'img', n: '3d ' + tag + (cls ? '.' + cls : ''), iso: id, fit: 'fill', x, y, w, h, abs: true}));
+	}
+
 	function materialisePseudo(root) {
 		const st = document.createElement('style');
 		st.textContent = '.__h2f-b::before{content:none!important}.__h2f-a::after{content:none!important}.__h2f-m{list-style-type:none!important}';
 		document.head.appendChild(st);
 		for (const el of [...root.querySelectorAll('*')]) {
-			if (el.closest('svg')) continue;
+			if (el.closest('svg') || in3d(el)) continue;
 			for (const which of ['before', 'after']) {
 				const cs = getComputedStyle(el, '::' + which);
 				if (!cs.content || cs.content === 'none' || cs.content === 'normal') continue;
@@ -871,20 +1040,107 @@
 		EXT.set(n, e);
 		return e;
 	}
-	const overlap = (a, b) => a.x0 < b.x1 - 0.5 && b.x0 < a.x1 - 0.5 && a.y0 < b.y1 - 0.5 && b.y0 < a.y1 - 0.5;
+	const overlap = (a, b, t = 0.5) => a.x0 < b.x1 - t && b.x0 < a.x1 - t && a.y0 < b.y1 - t && b.y0 < a.y1 - t;
+	// moving a layer out of its parent takes a real overlap, not line boxes touching by a pixel
+	const HOIST_MIN = 3;
 
 	// Puts a child list into paint order, moving a node only above the siblings it overlaps (where the order
 	// shows); everything else keeps DOM order, so Figma's layer list still reads like the page. An Auto Layout
 	// container whose in-flow items had to move loses `lay` (Figma lays items out in list order).
+	// Raised parts: a node without a stacking context of its own (a plain <header>, a position: relative card) paints
+	// its body at its own layer, but its positioned descendants paint in the parent's context, at theirs (a fixed
+	// drawer inside the header, a z-index button on a cover). RAISED: node -> [{n, key, parent, clip}] for such
+	// descendants above the node's own key; `parent` is the frame holding n, `clip` the clipping boxes between.
+	const RAISED = new WeakMap();
+	const partsOf = n => RAISED.get(n) || [];
+	const boxExt = n => ({x0: n.x, y0: n.y, x1: n.x + n.w, y1: n.y + n.h});
+	function isect(a, b) {
+		if (!a) return b;
+		const x = Math.max(a.x, b.x), y = Math.max(a.y, b.y);
+		return {x, y, w: Math.max(0, Math.min(a.x + a.w, b.x + b.w) - x), h: Math.max(0, Math.min(a.y + a.h, b.y + b.h) - y)};
+	}
+	function raisedParts(mine, own) {
+		const parts = [];
+		for (const c of mine.ch || []) {
+			if (cmpKey(keyOf(c), own) > 0) parts.push({n: c, key: keyOf(c), parent: mine, clip: null});
+			for (const p of partsOf(c)) {
+				if (cmpKey(p.key, own) > 0) parts.push(Object.assign({}, p, {clip: c.clip ? isect(p.clip, {x: c.x, y: c.y, w: c.w, h: c.h}) : p.clip}));
+			}
+		}
+		return parts;
+	}
+	// a node's key where it meets the area e: its own, or a raised part's that reaches into e
+	function keyAgainst(n, e) {
+		let k = keyOf(n);
+		for (const p of partsOf(n)) if (cmpKey(p.key, k) > 0 && overlap(extent(p.n), e)) k = p.key;
+		return k;
+	}
+	// a over b: higher key, or the same key and later in the DOM
+	const over = (ka, ia, kb, ib) => cmpKey(ka, kb) > 0 || (!cmpKey(ka, kb) && ia > ib);
+
+	// A node whose body paints under a sibling while one of its raised parts must paint over it (a cover under an
+	// avatar, its badge over the avatar) cannot be one layer in Figma: those parts move out of it, next to it in
+	// `list` (inside a clip frame when something on the way clipped them). True when something moved.
+	// where a node paints at its own layer: its box when it has a fill, border or shadow, and its content that is not
+	// a raised part (null: nothing, e.g. a plain wrapper around a raised avatar)
+	function bodyExt(m, raised) {
+		if (raised.has(m)) return null;
+		let e = m.t !== 'f' || m.bg || m.bd || (m.sh && m.sh.length) || m.layers || m.cp ? boxExt(m) : null;
+		for (const c of m.ch || []) {
+			const ce = bodyExt(c, raised);
+			if (ce) e = e ? {x0: Math.min(e.x0, ce.x0), y0: Math.min(e.y0, ce.y0), x1: Math.max(e.x1, ce.x1), y1: Math.max(e.y1, ce.y1)} : ce;
+		}
+		return e;
+	}
+
+	function hoistConflicts(list, node) {
+		for (let i = 0; i < list.length; i++) {
+			const x = list[i];
+			if (!partsOf(x).length) continue;
+			const body = bodyExt(x, new Set(partsOf(x).map(p => p.n)));
+			if (!body) continue;
+			for (let j = 0; j < list.length; j++) {
+				if (j === i) continue;
+				const y = list[j], ey = extent(y);
+				if (!overlap(body, ey, HOIST_MIN)) continue;
+				const ky = keyAgainst(y, extent(x));
+				if (over(keyOf(x), i, ky, j)) continue;
+				const up = partsOf(x).filter(p => over(p.key, i, ky, j) && overlap(extent(p.n), ey, HOIST_MIN));
+				if (!up.length) continue;
+				for (const p of up) {
+					const at = p.parent.ch.indexOf(p.n);
+					if (at < 0) continue;
+					p.parent.ch.splice(at, 1);
+					if (p.parent.lay && !p.n.abs) delete p.parent.lay;
+					EXT.delete(p.parent);
+					const clip = x.clip ? isect(p.clip, {x: x.x, y: x.y, w: x.w, h: x.h}) : p.clip;
+					let moved = p.n;
+					moved.abs = true;
+					if (clip) {
+						moved = {t: 'f', n: 'clip', x: clip.x, y: clip.y, w: clip.w, h: clip.h, bg: null, br: {tl: 0, tr: 0, br: 0, bl: 0}, bd: null, sh: [], op: 1, clip: true, abs: true, ch: [moved]};
+						KEY.set(moved, p.key);
+					}
+					list.splice(i + 1, 0, moved);
+				}
+				RAISED.set(x, partsOf(x).filter(p => !up.includes(p)));
+				EXT.delete(x);
+				if (node && node.lay) delete node.lay;
+				return true;
+			}
+		}
+		return false;
+	}
+
 	function paintOrder(list, node) {
+		for (let guard = 0; guard < 20 && hoistConflicts(list, node); guard++);
 		const n = list.length;
 		const keys = list.map(keyOf);
-		if (keys.every(k => !cmpKey(k, keys[0]))) return;
+		if (keys.every(k => !cmpKey(k, keys[0])) && !list.some(c => partsOf(c).length)) return;
 		// below[j] = how many overlapping siblings must come before j
 		const ext = list.map(extent), above = list.map(() => []), below = new Array(n).fill(0);
 		for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
 			if (!overlap(ext[i], ext[j])) continue;
-			if (cmpKey(keys[j], keys[i]) >= 0) { above[i].push(j); below[j]++; } else { above[j].push(i); below[i]++; }
+			if (!over(keyAgainst(list[i], ext[j]), i, keyAgainst(list[j], ext[i]), j)) { above[i].push(j); below[j]++; } else { above[j].push(i); below[i]++; }
 		}
 		// topological order, always taking the earliest node in DOM order that is free
 		const out = [], done = new Array(n).fill(false);
@@ -916,7 +1172,10 @@
 		const tf = transformOf(cs);
 		const stack = stackingOf(el, cs, tf);
 		const start = out.length;
-		if (!tf) {
+		const scene = ROOTS_3D.has(el);
+		if (scene) {
+			scene3d(el, out); // one picture, transform included
+		} else if (!tf) {
 			await walkElement(el, cs, out);
 		} else {
 			const saved = ['transform', 'rotate', 'scale', 'translate'].map(p => [p, el.style.getPropertyValue(p), el.style.getPropertyPriority(p)]);
@@ -932,15 +1191,19 @@
 		}
 		// only on the element's own node, never on a child's (an inline element makes no node of its own)
 		const mine = out.length > start && OWNER.get(out[start]) === el ? out[start] : null;
-		if (mine && tf) mine.tf = tf;
+		if (mine && tf && !scene) mine.tf = tf;
 		// out of the flow (position absolute / fixed): stays absolute inside an Auto Layout parent
 		if (mine && /^(absolute|fixed)$/.test(cs.position)) mine.abs = true;
 		if (mine) {
 			// without a stacking context of its own, the element's positioned descendants paint in the parent's
-			// context: the node is lifted to the highest of them (e.g. a plain <header> holding a fixed drawer)
-			let key = stack.slice(0, 2);
-			if (!stack[2] && mine.ch) for (const c of mine.ch) if (keyOf(c)[0] > 0 && cmpKey(keyOf(c), key) > 0) key = keyOf(c);
+			// context: they are its raised parts, which count where they overlap a sibling (a plain <header> holding
+			// a fixed drawer goes over the page; a cover goes over the avatar only where its z-index button is)
+			const key = stack.slice(0, 2);
 			if (key[0] || key[1]) KEY.set(mine, key);
+			if (!stack[2]) {
+				const parts = raisedParts(mine, key);
+				if (parts.length) RAISED.set(mine, parts);
+			}
 		} else if ((stack[0] || stack[1]) && out.length > start) {
 			// no node of its own (e.g. a fixed menu wrapper with height 0, z-index 6): what it painted carries its
 			// layer, so a drawer inside it still paints over the page. In a stacking context everything does; else
@@ -994,6 +1257,25 @@
 		return {d: H ? 'H' : 'V', gap: r(gap), p: p.map(r), main, cross};
 	}
 
+	// gradient text: the element's background (colour and layers) becomes the fill of its see-through text, laid out
+	// on the element's box (fb) as in the browser
+	async function textPaint(el, cs, b, made) {
+		const tmp = {ch: []};
+		if (cs.backgroundImage && cs.backgroundImage !== 'none') await backgrounds(el, cs, b, tmp);
+		const fill = tmp.layers || [];
+		const fbg = rgba(cs.backgroundColor);
+		if (!fill.length && !fbg) return;
+		const paint = n => {
+			if (n.t === 't' && !n.fill && !(n.c && n.c[3] > 0)) {
+				n.fill = fill;
+				if (fbg) n.fbg = fbg;
+				n.fb = {x: b.x, y: b.y, w: b.w, h: b.h};
+			}
+			(n.ch || []).forEach(paint);
+		};
+		made.forEach(paint);
+	}
+
 	async function walkElement(el, cs, out) {
 		const tag = el.tagName.toLowerCase();
 		const b = box(el.getBoundingClientRect());
@@ -1017,10 +1299,12 @@
 		}
 		if (tag === 'input' && (el.type === 'range' || el.type === 'hidden')) return;
 
-		const bg = rgba(cs.backgroundColor);
+		// background-clip: text: the background shows only through the letters, so it is the text's paint, not the box's
+		const clipText = /text/.test(cs.backgroundClip || '') || /text/.test(cs.webkitBackgroundClip || '');
+		const bg = clipText ? null : rgba(cs.backgroundColor);
 		const bd = border(cs);
 		const sh = shadows(cs.boxShadow);
-		const hasBgImage = cs.backgroundImage && cs.backgroundImage !== 'none';
+		const hasBgImage = !clipText && cs.backgroundImage && cs.backgroundImage !== 'none';
 		const visual = !!(bg || bd || sh.length || hasBgImage || Object.keys(effectsOf(cs).props).length || clipPathOf(cs, b.w, b.h));
 		const isControl = /^(input|select|textarea|button)$/.test(tag);
 		const clip = /hidden|clip|auto|scroll/.test(cs.overflowX + cs.overflowY);
@@ -1030,6 +1314,7 @@
 		if (!INLINE.test(cs.display) && ((clipY && b.h < 0.5) || (clipX && b.w < 0.5))) return;
 		const isInline = INLINE.test(cs.display) && !visual && !isControl;
 
+		const first = out.length;
 		let children = out;
 		let node = null;
 		if (!isInline && b.w > 0 && b.h > 0) {
@@ -1071,6 +1356,7 @@
 			}
 			i++;
 		}
+		if (clipText) await textPaint(el, cs, b, out.slice(first));
 		if (node) {
 			const lay = autoLayoutOf(cs, node); // "lay", not "al": text nodes use "al" for text-align
 			if (lay) node.lay = lay;
@@ -1080,9 +1366,20 @@
 
 	async function extract(opts) {
 		OPTS = Object.assign({replaceText: {}}, opts || {});
+		// 3D scenes keep the frame they show now (a spinning ring mid-turn, as people see it): their animations are
+		// paused where they are. Everything else is stopped (animations off: final, readable state).
+		ROOTS_3D = find3dRoots(document.body);
+		const live = el => [...ROOTS_3D].some(r => r === el || r.contains(el));
+		for (const r of ROOTS_3D) r.setAttribute('data-h2f-live', '');
+		for (const a of document.getAnimations()) {
+			const t = a.effect && a.effect.target;
+			if (t && live(t)) a.pause();
+		}
+		const still = ':not([data-h2f-live], [data-h2f-live] *)';
 		const st = document.createElement('style');
 		st.textContent = 'html{scrollbar-width:none!important;scroll-behavior:auto!important}::-webkit-scrollbar{display:none!important}'
-			+ '*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}';
+			+ '*{caret-color:transparent!important}'
+			+ ['', '::before', '::after'].map(p => '*' + still + p).join(',') + '{animation:none!important;transition:none!important}';
 		document.head.appendChild(st);
 		// to the top at once: a smooth scroll still running (scroll-behavior: smooth, a step's scrollIntoView) would
 		// leave sticky elements measured part-way down the page

@@ -93,6 +93,24 @@ pages drawn by JavaScript.
   to the last letter.
 - **File extensions lie.** A site's `rocket.png` was a WebP; the server said `image/png`, so WebP bytes went to
   Figma, which showed a grey placeholder. Capture checks the bytes.
+- **Figma's Inter is a little wider than the browser's.** Google Fonts serves Inter 4 (optical sizes: narrower at
+  large sizes). A headline whose box was exactly as wide as "Your creative" wrapped in Figma ("Your / creative /
+  space.") and ran into the paragraph below. Text whose lines all end at a `<br>` now has an auto-width box
+  (`nw`); wrapping text gets 3% extra width.
+- **CSS 3D cannot be flattened.** A spinning photo ring (`preserve-3d`, `perspective()`, `rotateY` cards) came out
+  as a flat band: only the 2D part of each `matrix3d` was kept. The scene is now one picture of just that element
+  on a transparent background (everything else hidden while it is taken, ancestors untransformed like the
+  extractor measured them). Pseudo-elements inside are left alone, so back faces stay real. Its animations are
+  paused, not switched off: stopped at 0°, the folio ring showed only dark back faces (the page also had a
+  second, still copy of the cards outside the track that covered the photos exactly at 0°).
+- **Lifting a whole node over-raises it.** A `position: relative` cover holding a `z-index: 2` button was ranked at
+  z 2 as a whole and painted over the avatar that overlaps it. Only the parts that overlap a sibling count now; a
+  part that must go over a sibling the node's body is under moves out of the node.
+- **Radial gradients, px stops.** Decorative circles (`radial-gradient(circle at 12% 35%, white 0 96px, transparent
+  97px)`) were dropped, and only % stops were read. Linear gradients were also mapped as if every box were
+  square, which tilts a 120° gradient on a wide cover.
+- **Gradient text** (`background-clip: text; color: transparent`) came out as black text on a gradient box. The
+  background is now the text's fill, laid out on the element's box.
 - **Viewport emulation in automation panes** may reset between turns. Re-apply it before each capture and
   check `innerWidth`.
 
@@ -138,4 +156,4 @@ pages drawn by JavaScript.
 - Auto Layout inference for simple flex rows and columns.
 - Turning repeated subtrees (same class and structure) into Figma Components automatically.
 - Colour and text styles generated from the CSS custom properties on `:root`.
-- Radial gradients, `text-shadow`, CSS transforms (rotation).
+- Conic and repeating gradients.
