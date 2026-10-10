@@ -21,10 +21,12 @@ chosen screen sizes. Status: **v1 is built** (steps 1–6 of
 | `src/capture.js` | **Done.** Capture engine + CLI: `node src/capture.js examples/fixture.settings.json --screens desktop`, or a folder: `node src/capture.js C:/site --save projects/site.json`. |
 | `src/crawl.js` | **Done.** Crawler + CLI: `node src/crawl.js projects/x.json --save projects/x.json` (guest + each account; templates folded into "similar"). |
 | `server.js`, `panel/`, `start.bat`, `start.command` | **Done.** Control panel on http://localhost:5600 (API in `docs/PLAN.md`); launchers for Windows and macOS. |
+| `src/trash.js` | Moves files to the Recycle Bin / Trash (Windows, macOS with a `~/.Trash` fallback, Linux); used by the panel's "Recent captures" remove buttons. |
 | `assets/` | The owner's logo: `logo.png` (original, 828×828, transparent) and trimmed squares `logo-256/128/64.png` (panel header and favicon, README, plugin header embedded as base64, Figma Community icon). |
 | `test/compare-capture.js` | Compares page sizes of two capture files (exact). |
 | `test/prototype-sample.json` | 3 pages in the old prototype format; the plugin must keep importing it. |
 | `figma-plugin/` | **Done (v1).** Generic importer: v1 + prototype files, panel or file; layout "one page" with a Section per screen (default) or "page per screen" (D14). |
+| `test/trash.js` | Checks `src/trash.js` on this computer (run it on Windows and macOS). |
 | `test/mock-figma.js` | Runs `figma-plugin/code.js` against a fake Figma API (18 tests). |
 | `test/site/` + `examples/fixture.settings.json` | **Fixture**: responsive test site covering every capture/plugin feature, plus known limits (`test/site/README.md`). Use it to check changes. |
 

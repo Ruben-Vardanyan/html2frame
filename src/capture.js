@@ -194,10 +194,10 @@ async function scrollThrough(page) {
 		const pause = ms => new Promise(r => setTimeout(r, ms));
 		const height = () => Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0);
 		for (let y = 0; y < height() && y < 50000; y += innerHeight) {
-			scrollTo(0, y);
+			scrollTo({left: 0, top: y, behavior: 'instant'}); // not smooth, even with scroll-behavior: smooth
 			await pause(60);
 		}
-		scrollTo(0, 0);
+		scrollTo({left: 0, top: 0, behavior: 'instant'});
 		const pending = [...document.images].filter(im => !im.complete).map(im => new Promise(r => {
 			im.addEventListener('load', r, {once: true});
 			im.addEventListener('error', r, {once: true});

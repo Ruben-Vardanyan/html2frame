@@ -303,6 +303,12 @@ html[data-theme="dark"] .color-alpha { color: rgba(233, 236, 243, .45); }
 .z-a, .z-b { position: absolute; width: 90px; height: 60px; border-radius: 8px; color: #fff; font-size: 12px; padding: 6px; }
 .z-a { left: 0; top: 0; background: #e03131; z-index: 2; }
 .z-b { left: 40px; top: 24px; background: #3b5bdb; z-index: 1; } /* painted under .z-a in the browser */
+.esc-wrap { height: 20px; } /* a frame of its own in Figma, holding the panel */
+.esc-panel { position: absolute; left: 0; top: 0; width: 110px; height: 70px; z-index: 5; background: #2f9e44; color: #fff; font-size: 12px; padding: 6px; border-radius: 8px; }
+.esc-later { position: relative; margin-left: 50px; padding: 30px 8px 8px; background: #868e96; color: #fff; font-size: 12px; border-radius: 8px; } /* under .esc-panel in the browser */
+.z-row { display: flex; gap: 8px; }
+.z-row > div { flex: 1; height: 50px; border-radius: 8px; background: #dbe4ff; color: #0e1420; font-size: 12px; padding: 6px; }
+.z-row > .z-lift { position: relative; z-index: 1; background: var(--accent); }
 .text-shadow { font-size: 28px; font-weight: 800; text-shadow: 2px 2px 0 var(--accent); }
 .blend { background: var(--brand); mix-blend-mode: multiply; color: #fff; padding: 12px; border-radius: 8px; }
 .filter-blur { filter: blur(2px); background: var(--ok); color: #fff; padding: 12px; border-radius: 8px; }

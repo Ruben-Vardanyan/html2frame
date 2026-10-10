@@ -47,6 +47,11 @@ pages drawn by JavaScript.
   `֏ → "AMD"`.
 - **Images.** Fetch them from Node (Playwright `context.request`) rather than in the page, to avoid CORS.
   SVG becomes vector nodes; raster becomes `IMAGE` fills.
+- **Paint order is not DOM order.** Figma paints children in list order; CSS paints by stacking layers
+  (`z-index`, positioned elements). A drawer (`fixed`, `z-index`) inside a sticky header that comes before the
+  page content ended up under the page text. Moving every positioned layer to the end fixed that but jumbled
+  Figma's layer list (the header after the footer), so a layer is only moved above the siblings it overlaps,
+  counting what spills out of its box.
 
 ## 4. Environment gotchas (cost real time)
 
@@ -66,6 +71,9 @@ pages drawn by JavaScript.
   The prototype sample mixes pages captured at 100 % and 125 % (3–7 px height differences on 12 pages).
   Playwright's `deviceScaleFactor` emulation does **not** reproduce this; only the Chromium flag
   `--force-device-scale-factor` does. v1 captures at scale 1, i.e. the CSS values as written.
+- **`scroll-behavior: smooth` survives `scrollTo(0, 0)`.** After scrolling through for lazy images, the smooth
+  scroll back up was still running when the page was measured, so sticky headers landed 1–1000 px down the
+  page (46 of 108 Fixture frames). Scroll with `behavior: 'instant'` and check `scrollY` is 0 before measuring.
 - **Viewport emulation in automation panes** may reset between turns. Re-apply it before each capture and
   check `innerWidth`.
 

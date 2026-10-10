@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Help — html2frame</title>
+	<link rel="stylesheet" href="panel.css">
+	<script src="theme.js"></script>
+	<link rel="icon" type="image/png" href="/assets/logo-64.png">
+	<script src="help.js" defer></script>
+</head>
+<body>
+	<header class="top">
+		<div class="top-inner">
+			<a class="brand plain" href="/">
+				<img class="logo" src="/assets/logo-128.png" alt="html2frame logo" width="40" height="40">
+				<div><div class="title">html2frame</div><div class="subtitle">Help</div></div>
+			</a>
+			<div class="top-links">
+				<div class="seg theme-switch" role="radiogroup" aria-label="Theme">
+					<label title="Same as your system"><input type="radio" name="theme" value="system" aria-label="System theme"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.75" y="2.75" width="12.5" height="8.5" rx="1.5"/><path d="M5.5 14h5M8 11.5V14" stroke-linecap="round"/></svg></label>
+					<label title="Light"><input type="radio" name="theme" value="light" aria-label="Light theme"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1"/></svg></label>
+					<label title="Dark"><input type="radio" name="theme" value="dark" aria-label="Dark theme"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M13.5 9.6A5.75 5.75 0 0 1 6.4 2.5a5.75 5.75 0 1 0 7.1 7.1z"/></svg></label>
+				</div>
+				<a class="btn ghost" href="/">← Back to the panel</a>
+			</div>
+		</div>
+	</header>
+
+	<main class="help-page">
+		<section class="card">
+			<h1>Add the html2frame plugin to Figma</h1>
+			<p class="muted">You do this <b>once</b> per computer. Afterwards the plugin stays under Plugins → Development, and
+				the panel's captures come into Figma with one click.</p>
+			<div class="seg os-switch" id="osSwitch" role="tablist" aria-label="Your system">
+				<label><input type="radio" name="os" value="win"> Windows</label>
+				<label><input type="radio" name="os" value="mac"> macOS</label>
+			</div>
+
+			<ol class="steps">
+				<li>
+					<h2>Install the Figma desktop app</h2>
+					<p>Download it from <a href="https://www.figma.com/downloads/" target="_blank" rel="noopener">figma.com/downloads</a>
+						and sign in. Any plan works, the free one too. Figma in the browser can't load plugins from your
+						computer, so it has to be the desktop app.</p>
+				</li>
+				<li>
+					<h2>Open a design file</h2>
+					<p>Open any <b>Design</b> file, or create one (<b>+ Create</b> → <b>Design</b>). The plugin menus only show
+						inside a design file, not on the home screen or in FigJam and Slides.</p>
+				</li>
+				<li>
+					<h2>Import the plugin from its manifest</h2>
+					<p data-os="win">Click the <b>Figma menu</b> (the Figma logo at the top left), then
+						<b>Plugins → Development → Import plugin from manifest…</b></p>
+					<p data-os="mac">In the menu bar choose <b>Plugins → Development → Import plugin from manifest…</b></p>
+					<p class="muted small">Shortcut: press <kbd data-os="win">Ctrl</kbd><kbd data-os="mac">⌘</kbd> + <kbd>/</kbd>,
+						type <i>import plugin from manifest</i> and press Enter.</p>
+					<p>In the window that opens, choose this file:</p>
+					<div class="path-box">
+						<code id="manifestPath">figma-plugin/manifest.json in the html2frame folder</code>
+						<div class="path-actions">
+							<button class="btn ghost small" id="copyPath" type="button">Copy path</button>
+							<button class="btn ghost small" id="revealPath" type="button"><span data-os="win">Show in Explorer</span><span data-os="mac">Show in Finder</span></button>
+						</div>
+					</div>
+					<p class="muted small" data-os="win">Tip: click <b>Copy path</b>, paste it into the <b>File name</b> box of
+						Figma's window and press Enter.</p>
+					<p class="muted small" data-os="mac">Tip: click <b>Copy path</b>, press <kbd>⌘</kbd> + <kbd>Shift</kbd> + <kbd>G</kbd>
+						in Figma's window, paste the path and press Enter.</p>
+					<p>Figma now lists <b>html2frame</b> under Plugins → Development.</p>
+				</li>
+				<li>
+					<h2>Run it</h2>
+					<p><b>Plugins → Development → html2frame</b>, then <b>Latest from panel</b> (or <b>Choose file</b> for a
+						capture file somebody sent you). Pick the screen sizes and variants, and click <b>Import</b>.</p>
+					<img class="shot" src="/images/plugin.png" alt="The html2frame plugin window in Figma" width="380" height="600">
+				</li>
+			</ol>
+		</section>
+
+		<section class="card">
+			<h2>If something doesn't work</h2>
+			<dl class="faq">
+				<dt>There is no “Development” menu, or “Import plugin from manifest…” is missing</dt>
+				<dd>You are in Figma in the browser, on the home screen, or in a FigJam or Slides file. Open a Design file
+					in the desktop app.</dd>
+				<dt>“Latest from panel” says it can't reach the panel</dt>
+				<dd>This panel has to be running (keep its window open) at <code>http://localhost:5600</code>, the only
+					address the plugin may load from. <span id="portWarning" class="warn-text" hidden></span>
+					Or save the capture with <b>Download JSON</b> and use <b>Choose file</b> in the plugin.</dd>
+				<dt>You moved or renamed the html2frame folder</dt>
+				<dd>Figma remembers where the manifest was. Import it again from the new place (step 3).</dd>
+				<dt>You updated html2frame</dt>
+				<dd>Nothing to do: Figma loads the plugin from the folder each time you run it.</dd>
+				<dt>You want to remove the plugin</dt>
+				<dd><b>Plugins → Development → Manage plugins in development</b>, then remove html2frame from the list.</dd>
+			</dl>
+		</section>
+	</main>
+
+	<footer class="foot">
+		<span>html2frame</span>
+		<span>·</span>
+		<a href="/license" target="_blank" rel="noopener">MIT License</a>
+		<span>·</span>
+		<span>© 2026 Ruben Vardanyan</span>
+		<span>·</span>
+		<a href="https://github.com/Ruben-Vardanyan/html2frame" target="_blank" rel="noopener">GitHub</a>
+	</footer>
+</body>
+</html>

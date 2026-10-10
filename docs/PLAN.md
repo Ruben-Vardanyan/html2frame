@@ -24,7 +24,7 @@ src/
   capture.js                   Playwright runner (also a CLI: node src/capture.js projects/x.json)
   crawl.js                     same-origin link crawler (per account)
   steps.js                     runs step lists (goto, click, fill, …) on a Playwright page
-panel/                         index.html, panel.js, panel.css (vanilla)
+panel/                         index.html, panel.js, panel.css (vanilla); help.html, help.js (adding the plugin to Figma); theme.js (System / Light / Dark)
 figma-plugin/                  manifest.json, code.js, ui.html (v1, generic)
 projects/                      <name>.json settings (git-ignored except examples)
 captures/                      <project>-<timestamp>.json (git-ignored)
@@ -171,13 +171,14 @@ files start with a one-line licence notice. Cards:
    nothing links to), a table: include, name, address, group, account, tags (similar, steps, some
    screens/variants), steps (JSON), duplicate as a state, remove; "Add a page".
 6. **Capture.** Frame estimate (pages × screens × variants), Capture (saves first), progress bar and log
-   (SSE), result with failures and "Download JSON", the Figma hint, recent captures.
+   (SSE), result with failures and "Download JSON", the Figma hint, recent captures (remove one, or all, to the recycle bin / Trash).
 
 API (JSON):
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /api/info` | screen presets, examples, the running job |
+| `GET /api/info` | screen presets, examples, the running job, platform, port, the plugin's `manifest.json` path |
+| `POST /api/reveal-plugin` | shows `figma-plugin/manifest.json` in Explorer / Finder (Help page) |
 | `GET /api/projects` | list projects |
 | `POST /api/projects` | create `{name, source}` or copy `{example}` |
 | `GET/PUT/DELETE /api/projects/:name` | read, save, delete a project |
@@ -190,6 +191,7 @@ API (JSON):
 | `POST /api/capture` | `{project, screens?, pages?}` → `{job}` |
 | `GET /api/jobs/:id/events` | SSE: `log`, `progress`, `done {result}`, `error` (also `/api/capture/:id/events`) |
 | `GET /api/captures` | list captures (newest first) |
+| `DELETE /api/captures/:file`, `DELETE /api/captures` | move one capture, or all of them, to the recycle bin / Trash (`src/trash.js`: Windows Recycle Bin, macOS Finder with a `~/.Trash` fallback, Linux `gio trash`); panel only (the preflight allows GET alone) |
 | `GET /api/captures/latest`, `/api/captures/:file` | a capture file (`?download` for a download); CORS `*` and private-network preflight for the plugin |
 
 One browser job (crawl, capture, test login) at a time; another gets 409. The server binds to `127.0.0.1`

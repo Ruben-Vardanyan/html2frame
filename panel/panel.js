@@ -97,8 +97,8 @@ function setBusy(b, text) {
 	busy = b;
 	$('busyChip').hidden = !b;
 	$('busyText').textContent = text || 'Working…';
-	for (const id of ['findPages', 'captureBtn', 'saveProject', 'newProject', 'projectSelect', 'projectBtn', 'deleteProject']) $(id).disabled = b || (id === 'saveProject' && !dirty);
-	document.querySelectorAll('[data-test-login]').forEach(x => { x.disabled = b; });
+	for (const id of ['findPages', 'captureBtn', 'saveProject', 'newProject', 'projectSelect', 'projectBtn', 'deleteProject', 'removeAllCaptures']) $(id).disabled = b || (id === 'saveProject' && !dirty);
+	document.querySelectorAll('[data-test-login], [data-remove-capture]').forEach(x => { x.disabled = b; });
 }
 
 // ---- dirty / save -----------------------------------------------------------------------------------
@@ -838,14 +838,33 @@ async function runCapture() {
 	}
 }
 
+const TRASH = /Win/.test(navigator.platform || navigator.userAgent) ? 'Recycle Bin' : 'Trash';
+
 async function renderCaptures() {
 	const list = await call('GET', '/api/captures');
 	const ul = $('captureList');
 	ul.innerHTML = '';
 	for (const c of list.slice(0, 8)) {
-		ul.append(el('li', {}, el('span', {}, c.file), el('span', {class: 'muted'}, new Date(c.modified).toLocaleString() + ' · ' + (c.size / 1048576).toFixed(1) + ' MB · ', el('a', {href: '/api/captures/' + encodeURIComponent(c.file) + '?download'}, 'Download'))));
+		ul.append(el('li', {}, el('span', {}, c.file), el('span', {class: 'muted'}, new Date(c.modified).toLocaleString() + ' · ' + (c.size / 1048576).toFixed(1) + ' MB · ', el('a', {href: '/api/captures/' + encodeURIComponent(c.file) + '?download'}, 'Download'),
+			el('button', {class: 'icon-btn danger', type: 'button', 'data-remove-capture': true, title: 'Move to the ' + TRASH, disabled: busy, onclick: () => removeCaptures(c.file, 'Move "' + c.file + '" to the ' + TRASH + '?')}, '×'))));
 	}
+	if (list.length > 8) ul.append(el('li', {class: 'muted'}, '… and ' + (list.length - 8) + ' older'));
 	if (!list.length) ul.append(el('li', {class: 'muted'}, 'None yet.'));
+	const total = list.reduce((s, c) => s + c.size, 0);
+	$('removeAllCaptures').hidden = !list.length;
+	$('removeAllCaptures').onclick = () => removeCaptures(null, 'Move all ' + list.length + ' capture(s) (' + (total / 1048576).toFixed(1) + ' MB) to the ' + TRASH + '?\n\nThis includes older captures not shown in the list.');
+}
+
+// one capture by file name, or all of them (file = null); they go to the recycle bin / Trash
+async function removeCaptures(file, question) {
+	if (busy || !confirm(question)) return;
+	$('captureListError').textContent = '';
+	try {
+		await call('DELETE', '/api/captures' + (file ? '/' + encodeURIComponent(file) : ''));
+	} catch (e) {
+		$('captureListError').textContent = e.message;
+	}
+	renderCaptures();
 }
 
 // ---- folder browser ---------------------------------------------------------------------------------
