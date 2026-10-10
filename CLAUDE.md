@@ -27,7 +27,7 @@ chosen screen sizes. Status: **v1 is built** (steps 1–6 of
 | `test/prototype-sample.json` | 3 pages in the old prototype format; the plugin must keep importing it. |
 | `figma-plugin/` | **Done (v1).** Generic importer: v1 + prototype files, panel or file; layout "one page" with a Section per screen (default) or "page per screen" (D14). |
 | `test/trash.js` | Checks `src/trash.js` on this computer (run it on Windows and macOS). |
-| `test/mock-figma.js` | Runs `figma-plugin/code.js` against a fake Figma API (19 tests). |
+| `test/mock-figma.js` | Runs `figma-plugin/code.js` against a fake Figma API (20 tests). |
 | `test/site/` + `examples/fixture.settings.json` | **Fixture**: responsive test site covering every capture/plugin feature, plus known limits (`test/site/README.md`). Use it to check changes. |
 
 ## Next step

@@ -152,19 +152,20 @@ in [`docs/FORMAT.md`](docs/FORMAT.md).
 ## What comes through
 
 - **Layout and boxes:** positions, sizes, background colours, borders (per side, dashed), corner radii, shadows,
-  opacity, clipping, linear gradients, background images, CSS `clip-path` (as masks), rotate/scale/mirror/translate
+  opacity, clipping, linear and radial gradients, background images, CSS `clip-path` (as masks), rotate/scale/mirror/translate
   transforms, blur, background blur and blend modes.
 - **Text:** editable text layers with font, weight, size, line height, letter spacing, colour, alignment,
-  decoration, case and text shadow; a paragraph with links or bold words is one layer with styled ranges;
+  decoration, case, text shadow and gradient text; a paragraph with links or bold words is one layer with styled ranges;
   `sans-serif`, `serif` and `monospace` become the font the browser used (e.g. Arial); multi-column text;
   vertical text. Each script gets a suitable font: for
   Armenian, the site's Armenian font if Figma has it, otherwise Calibri (then other Armenian fonts).
 - **Vectors and images:** inline SVG (including `<use>` sprites) as editable vectors; SVG, PNG, JPEG, GIF and
   WebP images (also when the file name says otherwise); icon fonts such as Font Awesome as images; canvas,
-  video and iframes as images.
+  video and iframes as images; CSS 3D scenes (perspective, spinning rings) as one picture each, since Figma has
+  no perspective.
 - **Forms:** values, placeholders, password dots, selects, checkboxes, radios and toggles.
 - **Lists and details:** bullets, numbers and the triangles of `<details>`.
-- **Not (yet):** radial gradients, CSS counters, skew transforms, text that overflows its box
+- **Not (yet):** conic and repeating gradients, CSS counters, skew transforms, text that overflows its box
   with an ellipsis, and Auto Layout for plain stacked blocks or grids. The test site's *Edge cases* page
   ([`test/site/edge-cases.html`](test/site/edge-cases.html)) shows each case and what Figma should show.
 

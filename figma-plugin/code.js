@@ -230,21 +230,47 @@ function clamp01(v) {
 	return Math.max(0, Math.min(1, Number(v) || 0));
 }
 
-// CSS angle (0° = to top, 90° = to right) -> Figma gradientTransform; see docs/FORMAT.md
-function gradientPaint(l) {
-	const t = (Number(l.angle) || 0) * Math.PI / 180;
-	const vx = Math.sin(t), vy = -Math.cos(t);
-	const p0x = 0.5 - vx / 2, p0y = 0.5 - vy / 2;
-	const len2 = vx * vx + vy * vy;
-	const a = vx / len2, b = vy / len2, c = -(a * p0x + b * p0y);
-	const d = -vy / len2, e = vx / len2, f = 0.5 - (d * p0x + e * p0y);
+// CSS gradient -> Figma paint for a w×h node. `box` is where the gradient is laid out, in px from the node's
+// top-left corner (the node itself by default; the element's box for gradient text). gradientTransform maps the
+// node's unit square into gradient space: a linear gradient runs from (0, .5) to (1, .5), a radial one is centred at
+// (.5, .5) with radius .5. Linear, as in CSS: the line passes through the box centre at `angle` (0° = to top,
+// 90° = to right) and is |w·sin| + |h·cos| long, so a corner-to-corner gradient stays one on a wide box.
+function gradientPaint(l, w, h, box) {
+	w = w > 0 ? w : 1;
+	h = h > 0 ? h : 1;
+	const bx = box || {x: 0, y: 0, w, h};
 	// a stop without a colour (older captures dropped fully transparent ones) is transparent
 	const stops = l.stops.map(s => {
 		const c = s.c || [0, 0, 0, 0];
 		return {position: clamp01(s.p), color: {r: c[0], g: c[1], b: c[2], a: c[3] === undefined ? 1 : c[3]}};
 	});
 	stops.sort((x, y) => x.position - y.position);
+	if (l.type === 'radial') {
+		const cx = bx.x + l.cx, cy = bx.y + l.cy;
+		return {type: 'GRADIENT_RADIAL', gradientTransform: [[w / (2 * l.rx), 0, 0.5 - cx / (2 * l.rx)], [0, h / (2 * l.ry), 0.5 - cy / (2 * l.ry)]], gradientStops: stops};
+	}
+	const t = (Number(l.angle) || 0) * Math.PI / 180;
+	const dx = Math.sin(t), dy = -Math.cos(t);
+	const len = Math.abs(bx.w * dx) + Math.abs(bx.h * dy) || 1;
+	const cx = bx.x + bx.w / 2, cy = bx.y + bx.h / 2;
+	// along the line: (p − centre)·d / len + .5; across it: (p − centre)·(−dy, dx) / len + .5
+	const a = w * dx / len, b = h * dy / len, c = 0.5 - (cx * dx + cy * dy) / len;
+	const d = -w * dy / len, e = h * dx / len, f = 0.5 - (-cx * dy + cy * dx) / len;
 	return {type: 'GRADIENT_LINEAR', gradientTransform: [[a, b, c], [d, e, f]], gradientStops: stops};
+}
+
+// background layers (already in Figma order) -> paints; a solid bg colour first
+function layerPaints(layers, bg, w, h, box, warn, name) {
+	const fills = bg ? [solid(bg)] : [];
+	for (const l of layers || []) {
+		try {
+			if ((l.type === 'gradient' || l.type === 'radial') && l.stops && l.stops.length >= 2) fills.push(gradientPaint(l, w, h, box));
+			else if (l.type === 'image' && l.data) fills.push(imagePaint(l.data, l.fit));
+		} catch (e) {
+			warn('background layer skipped on ' + name + ': ' + (e && e.message ? e.message : e));
+		}
+	}
+	return fills;
 }
 
 function imageHash(data) {
@@ -258,16 +284,7 @@ function imagePaint(data, fit) {
 
 // background colour first (bottom), then the extra layers, already in Figma order (last = top)
 function framePaints(n, warn) {
-	const fills = n.bg ? [solid(n.bg)] : [];
-	for (const l of n.layers || []) {
-		try {
-			if (l.type === 'gradient' && l.stops && l.stops.length >= 2) fills.push(gradientPaint(l));
-			else if (l.type === 'image' && l.data) fills.push(imagePaint(l.data, l.fit));
-		} catch (e) {
-			warn('background layer skipped on ' + (n.n || 'frame') + ': ' + (e && e.message ? e.message : e));
-		}
-	}
-	return fills;
+	return layerPaints(n.layers, n.bg, n.w, n.h, null, warn, n.n || 'frame');
 }
 
 function shadowEffect(s) {
@@ -492,11 +509,19 @@ async function build(parent, n, ox, oy, warn) {
 		applyRuns(t, n, warn);
 		if (n.ind) t.paragraphIndent = n.ind; // the first line starts mid-line on the page
 		parent.appendChild(t);
-		if (n.multi || n.fixed) {
+		if (n.fixed) {
 			t.textAutoResize = 'HEIGHT';
-			t.resize(Math.max(n.w + (n.fixed ? 0 : 2), 1), Math.max(n.h, 1));
-			t.x = n.x - ox - (n.fixed ? 0 : 1);
+			t.resize(Math.max(n.w, 1), Math.max(n.h, 1));
+			t.x = n.x - ox;
+		} else if (n.multi && !n.nw) {
+			// wrapping text: a little extra width, since Figma's fonts can be slightly wider than the browser's and
+			// a line that just fits would wrap; the box grows away from the alignment edge
+			const extra = Math.max(2, n.w * 0.03);
+			t.textAutoResize = 'HEIGHT';
+			t.resize(Math.max(n.w + extra, 1), Math.max(n.h, 1));
+			t.x = n.x - ox - (n.al === 'center' ? extra / 2 : n.al === 'right' ? extra : 0);
 		} else {
+			// one line, or lines that all end at a line break (nw): no wrapping at all
 			t.textAutoResize = 'WIDTH_AND_HEIGHT';
 			let x = n.x;
 			if (n.al === 'center') x = n.x + (n.w - t.width) / 2;
@@ -504,6 +529,13 @@ async function build(parent, n, ox, oy, warn) {
 			t.x = x - ox;
 		}
 		t.y = n.y - oy;
+		// gradient text (background-clip: text): the element's background, laid out on its box (fb)
+		if (n.fill && n.fill.length) {
+			const fb = n.fb || {x: n.x, y: n.y, w: n.w, h: n.h};
+			const box = {x: fb.x - (t.x + ox), y: fb.y - (t.y + oy), w: fb.w, h: fb.h};
+			const paints = layerPaints(n.fill, n.fbg, t.width, t.height, box, warn, t.name);
+			if (paints.length) t.fills = paints;
+		}
 		// vertical writing: the line is built horizontally, then turned 90° clockwise into its box
 		// (top-right corner = the start of the line); every glyph turns, CJK included
 		if (n.vt) t.relativeTransform = [[0, -1, n.x - ox + n.w], [1, 0, n.y - oy]];

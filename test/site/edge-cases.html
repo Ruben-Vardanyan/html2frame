@@ -171,6 +171,44 @@
 				</div>
 				<div class="expect">Expected: open content visible, closed content hidden, a 1px line, and ▼ / ▶ triangles before the summaries.</div>
 			</div>
+
+			<div class="edge">
+				<h3>CSS 3D: a ring and a tilted card</h3>
+				<div class="stage" style="display:flex;gap:16px;align-items:center">
+					<div class="ring3d"><div class="ring3d-track">
+						<span style="--i:0">1</span><span style="--i:1">2</span><span style="--i:2">3</span><span style="--i:3">4</span><span style="--i:4">5</span><span style="--i:5">6</span>
+					</div></div>
+					<div class="tilt3d"><div class="tilt3d-card">Tilted card</div></div>
+				</div>
+				<div class="expect">Expected: each as ONE picture with a transparent background (Figma has no perspective): the ring with near and far cards, the card with its far edge smaller. Not editable.</div>
+			</div>
+
+			<div class="edge">
+				<h3>Gradient text, radial circles</h3>
+				<div class="stage">
+					<p class="grad-head">Plain and <span class="grad-text">gradient words</span></p>
+					<div class="cover-radial"></div>
+				</div>
+				<div class="expect">Expected: “gradient words” filled purple → pink (no box behind them); a wide band with a 120° gradient and two hard-edged pale circles.</div>
+			</div>
+
+			<div class="edge">
+				<h3>Cover, its button and an avatar</h3>
+				<div class="stage">
+					<div class="cover-z"><button class="cover-z-btn" type="button">⋯</button></div>
+					<div><div class="cover-z-avatar">AS</div></div>
+					<div class="cover-z-note">Later box</div>
+				</div>
+				<div class="expect">Expected: the avatar circle and the grey “Later box” overlap the band and show on top of it; the ⋯ button (z-index 2) shows on top of the grey box.</div>
+			</div>
+
+			<div class="edge">
+				<h3>Line breaks that just fit</h3>
+				<div class="stage" style="display:flex">
+					<h2 class="tight-head">Your creative<br>space.</h2>
+				</div>
+				<div class="expect">Expected: exactly two lines in Figma (“Your creative” / “space.”), even where Figma's font is a little wider: no extra break.</div>
+			</div>
 		</div>
 	</section>
 

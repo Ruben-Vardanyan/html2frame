@@ -300,11 +300,20 @@ const RASTER_OK = /^image\/(png|jpeg|gif)$/;
 // canvas, video, iframe…: the extractor marks them (`shot`); a picture of each element becomes its image data.
 // Fixed and sticky elements are hidden meanwhile, so a sticky header cannot cover what is being photographed.
 async function takeShots(root, page, warn) {
-	const nodes = [];
+	const nodes = [], scenes = [];
 	(function walk(n) {
 		if (n.shot) nodes.push(n);
+		if (n.iso) scenes.push(n);
 		(n.ch || []).forEach(walk);
 	})(root);
+	for (const n of scenes) {
+		try {
+			n.data = await isolatedShot(page, n);
+		} catch (e) {
+			warn('could not take a picture of the ' + n.n + ' (' + String(e.message).split('\n')[0] + ')');
+		}
+		delete n.iso;
+	}
 	if (!nodes.length) return;
 	await page.evaluate(() => {
 		for (const el of document.querySelectorAll('body *')) {
@@ -323,6 +332,46 @@ async function takeShots(root, page, warn) {
 			warn('could not take a picture of the ' + n.n + ' (' + String(e.message).split('\n')[0] + ')');
 		}
 		delete n.shot;
+	}
+}
+
+// A CSS 3D scene (`iso`): only that element and what is inside it, on a transparent background. Everything else is
+// hidden for the moment (its ancestors too, at full opacity and untransformed: Figma applies those to the frames).
+async function isolatedShot(page, n) {
+	const marked = await page.evaluate(id => {
+		const root = document.querySelector('[data-h2f-iso="' + id + '"]');
+		if (!root) return false;
+		// the scene's animations stay where they are (the extractor paused them; a transition the page's scripts
+		// started since, e.g. a photo fading, is paused too)
+		for (const a of document.getAnimations()) {
+			const t = a.effect && a.effect.target;
+			if (t && (t === root || root.contains(t))) a.pause();
+		}
+		for (const el of [document.body, ...document.body.querySelectorAll('*')]) {
+			if (el === root || root.contains(el)) {
+				if (getComputedStyle(el).visibility === 'visible') el.setAttribute('data-h2f-show', '');
+			} else el.setAttribute(el.contains(root) ? 'data-h2f-anc' : 'data-h2f-off', '');
+		}
+		const st = document.createElement('style');
+		st.id = 'h2f-iso-style';
+		st.textContent = '[data-h2f-off],[data-h2f-anc]{visibility:hidden!important}'
+			// measured with the ancestors' transforms off (their frames carry them in Figma): drawn the same way here
+			+ '[data-h2f-anc]{opacity:1!important;transform:none!important;rotate:none!important;scale:none!important;translate:none!important}'
+			+ '[data-h2f-show]{visibility:visible!important}html,body{background:transparent!important}';
+		document.head.appendChild(st);
+		return true;
+	}, n.iso);
+	if (!marked) throw new Error('element not found');
+	try {
+		const buf = await page.screenshot({type: 'png', fullPage: true, omitBackground: true, timeout: 10000,
+			clip: {x: n.x, y: n.y, width: n.w, height: n.h}});
+		return buf.toString('base64');
+	} finally {
+		await page.evaluate(() => {
+			const st = document.getElementById('h2f-iso-style');
+			if (st) st.remove();
+			for (const a of ['data-h2f-show', 'data-h2f-anc', 'data-h2f-off']) for (const el of document.querySelectorAll('[' + a + ']')) el.removeAttribute(a);
+		});
 	}
 }
 
@@ -370,21 +419,31 @@ async function resolveImages(root, page, context, cache, warn) {
 		return {type: 'image', data, fit: l.fit};
 	}
 
+	async function layerList(list, box) {
+		const out = [];
+		for (const l of list) {
+			if (l.type !== 'image') {
+				out.push(l);
+				continue;
+			}
+			try {
+				out.push(await layer(l, box));
+			} catch (e) {
+				warn('background image not loaded, skipped: ' + short(l.src) + ' (' + e.message + ')');
+			}
+		}
+		return out;
+	}
+
 	async function walk(node) {
 		if (node.layers) {
-			const out = [];
-			for (const l of node.layers) {
-				if (l.type !== 'image') {
-					out.push(l);
-					continue;
-				}
-				try {
-					out.push(await layer(l, node));
-				} catch (e) {
-					warn('background image not loaded, skipped: ' + short(l.src) + ' (' + e.message + ')');
-				}
-			}
+			const out = await layerList(node.layers, node);
 			if (out.length) node.layers = out; else delete node.layers;
+		}
+		// gradient text (background-clip: text): the background is the text's paint
+		if (node.fill) {
+			const out = await layerList(node.fill, node.fb || node);
+			if (out.length) node.fill = out; else delete node.fill;
 		}
 		if (!node.ch) return;
 		const kids = [];
