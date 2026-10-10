@@ -109,6 +109,11 @@ pages drawn by JavaScript.
 - **Radial gradients, px stops.** Decorative circles (`radial-gradient(circle at 12% 35%, white 0 96px, transparent
   97px)`) were dropped, and only % stops were read. Linear gradients were also mapped as if every box were
   square, which tilts a 120° gradient on a wide cover.
+- **SVG dashes in Figma.** A donut chart drawn as stacked circles, each showing its slice with
+  `stroke-dasharray` and `stroke-dashoffset`, came out as a ring of repeating dashes: Figma's SVG import has no
+  dash offset and keeps the dash lengths unscaled on a drawing scaled ×4. Such dashes become one path each. Chrome's
+  `getTotalLength()` on a `<circle>` is about 0.65% short (99.35 for 2πr = 100), while the dashes are drawn on the
+  true circle, so circles and ellipses are measured exactly and written as arcs.
 - **Gradient text** (`background-clip: text; color: transparent`) came out as black text on a gradient box. The
   background is now the text's fill, laid out on the element's box.
 - **Viewport emulation in automation panes** may reset between turns. Re-apply it before each capture and

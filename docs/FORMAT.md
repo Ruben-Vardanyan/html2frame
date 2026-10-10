@@ -96,7 +96,7 @@ splits text that flows over CSS columns into one text node per column.
 ### `t: "svg"`: vector
 
 `{n, x, y, w, h, svg}`. `svg` is self-contained markup with `width`/`height` set to the box, colours
-resolved (no `currentColor`, no classes).
+resolved (no `currentColor`, no classes). A dashed stroke drawn with a `stroke-dashoffset`, a `pathLength` or at another scale than its viewBox (donut charts, progress rings) becomes one path per dash: true arcs on circles and ellipses, points along other shapes. Figma's SVG import has no dash offset and does not scale dash lengths. A plain dashed line keeps its `stroke-dasharray`.
 
 ### `t: "img"`: raster or SVG image
 

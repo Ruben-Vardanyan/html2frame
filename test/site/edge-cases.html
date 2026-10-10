@@ -203,6 +203,20 @@
 			</div>
 
 			<div class="edge">
+				<h3>Donut from stroke dashes</h3>
+				<div class="stage" style="display:flex;gap:16px;align-items:center">
+					<svg class="donut-dash" viewBox="0 0 42 42" role="img" aria-label="donut">
+						<circle cx="21" cy="21" r="15.915" fill="none" stroke="#e9ecef" stroke-width="5"/>
+						<circle cx="21" cy="21" r="15.915" fill="none" stroke="#7048e8" stroke-width="5" stroke-dasharray="50 50" stroke-dashoffset="0"/>
+						<circle cx="21" cy="21" r="15.915" fill="none" stroke="#e64980" stroke-width="5" stroke-dasharray="30 70" stroke-dashoffset="-50"/>
+						<circle cx="21" cy="21" r="15.915" fill="none" stroke="#f59f00" stroke-width="5" stroke-dasharray="20 80" stroke-dashoffset="-80"/>
+					</svg>
+					<svg width="120" height="40" viewBox="0 0 120 40"><line x1="4" y1="20" x2="116" y2="20" stroke="#495057" stroke-width="3" stroke-dasharray="8 6"/></svg>
+				</div>
+				<div class="expect">Expected: three arcs starting at 12 o'clock and going clockwise: purple half, pink 30%, orange 20%. The dashed line stays one line with a dash pattern.</div>
+			</div>
+
+			<div class="edge">
 				<h3>Line breaks that just fit</h3>
 				<div class="stage" style="display:flex">
 					<h2 class="tight-head">Your creative<br>space.</h2>

@@ -749,6 +749,97 @@
 		}
 	}
 
+	// Dashed strokes drawn with an offset, a pathLength or at another scale (donut charts, progress rings): Figma's
+	// SVG import has no dash offset and keeps the dash lengths unscaled, so a slice would repeat round the ring.
+	// Each dash becomes a path of its own, measured on the live element; null: leave the stroke as it is.
+	const DASH_MAX = 300;
+	// a circle or ellipse as SVG draws it: from (cx + rx, cy), clockwise; angle(s) = the angle s along the outline
+	function roundShape(el) {
+		const tag = el.tagName.toLowerCase();
+		const v = name => (el[name] && el[name].animVal ? el[name].animVal.value : NaN);
+		if (tag === 'circle') {
+			const r = v('r');
+			return r > 0 ? {cx: v('cx'), cy: v('cy'), rx: r, ry: r, L: 2 * Math.PI * r, angle: s => s / r} : null;
+		}
+		if (tag !== 'ellipse') return null;
+		const rx = v('rx'), ry = v('ry');
+		if (!(rx > 0 && ry > 0)) return null;
+		// arc length along the ellipse, in small steps
+		const N = 1440, len = [0];
+		for (let i = 1; i <= N; i++) {
+			const t0 = 2 * Math.PI * (i - 1) / N, t1 = 2 * Math.PI * i / N;
+			len.push(len[i - 1] + Math.hypot(rx * (Math.cos(t1) - Math.cos(t0)), ry * (Math.sin(t1) - Math.sin(t0))));
+		}
+		const angle = s => {
+			let lo = 0, hi = N;
+			while (hi - lo > 1) {
+				const mid = (lo + hi) >> 1;
+				if (len[mid] <= s) lo = mid; else hi = mid;
+			}
+			const f = len[hi] > len[lo] ? (s - len[lo]) / (len[hi] - len[lo]) : 0;
+			return 2 * Math.PI * (lo + Math.min(1, Math.max(0, f))) / N;
+		};
+		return {cx: v('cx'), cy: v('cy'), rx, ry, L: len[N], angle};
+	}
+	function dashPaths(el, cs) {
+		if (!el.getTotalLength || !cs.strokeDasharray || cs.strokeDasharray === 'none' || /%/.test(cs.strokeDasharray)) return null;
+		let dash = cs.strokeDasharray.split(/[\s,]+/).map(parseFloat).filter(Number.isFinite);
+		if (!dash.length || dash.some(v => v < 0) || dash.every(v => v === 0)) return null;
+		const offset = parseFloat(cs.strokeDashoffset) || 0;
+		const pl = parseFloat(el.getAttribute('pathLength'));
+		const m = el.getCTM && el.getCTM();
+		const scaled = m && Math.abs(Math.hypot(m.a, m.b) - 1) > 1e-3;
+		if (!offset && !(pl > 0) && !scaled) return null;
+		// circles and ellipses are measured exactly: Chrome's getTotalLength() on a circle is about 0.65% short (it
+		// measures a curve approximation), while the dashes are drawn on the true circle
+		const shape = roundShape(el);
+		let L;
+		try {
+			L = shape ? shape.L : el.getTotalLength();
+		} catch (e) {
+			return null;
+		}
+		if (!(L > 0)) return null;
+		const k = pl > 0 ? L / pl : 1;
+		if (dash.length % 2) dash = dash.concat(dash); // an odd list repeats (SVG)
+		dash = dash.map(v => v * k);
+		const period = dash.reduce((a, b) => a + b, 0);
+		if (L / period > DASH_MAX) return null;
+		// the offset moves the pattern back along the path; no wrap-around at the end of a closed shape
+		let pos = -((offset * k) % period);
+		if (pos > 0) pos -= period;
+		const round = cs.strokeLinecap !== 'butt';
+		const spans = [];
+		for (let i = 0; pos < L; i = (i + 1) % dash.length) {
+			if (i % 2 === 0) {
+				const a = Math.max(0, pos), b = Math.min(L, pos + dash[i]);
+				if (b - a > L * 1e-4 || (round && b > a)) spans.push([a, b]); // shorter with a butt cap: not visible
+				else if (round && dash[i] === 0 && pos >= 0) spans.push([pos, Math.min(L, pos + 0.01)]); // a dot
+			}
+			pos += dash[i];
+		}
+		const r3 = v => +v.toFixed(3);
+		if (shape) {
+			// true arcs: from the angle at a to the angle at b, clockwise (as the shape is drawn), in two halves when long
+			const P = t => r3(shape.cx + shape.rx * Math.cos(t)) + ' ' + r3(shape.cy + shape.ry * Math.sin(t));
+			const arc = (t0, t1) => 'A' + r3(shape.rx) + ' ' + r3(shape.ry) + ' 0 ' + (t1 - t0 > Math.PI ? 1 : 0) + ' 1 ' + P(t1);
+			return spans.map(([a, b]) => {
+				const t0 = shape.angle(a), t1 = shape.angle(b);
+				return 'M' + P(t0) + (t1 - t0 > Math.PI ? arc(t0, (t0 + t1) / 2) + arc((t0 + t1) / 2, t1) : arc(t0, t1));
+			});
+		}
+		const step = L / 720;
+		return spans.map(([a, b]) => {
+			const n = Math.max(1, Math.ceil((b - a) / step));
+			const pts = [];
+			for (let j = 0; j <= n; j++) {
+				const p = el.getPointAtLength(a + (b - a) * j / n);
+				pts.push(+p.x.toFixed(3) + ' ' + +p.y.toFixed(3));
+			}
+			return 'M' + pts.join('L');
+		});
+	}
+
 	async function svgMarkup(liveSvg, w, h) {
 		const clone = liveSvg.cloneNode(true);
 		const liveAll = [liveSvg, ...liveSvg.querySelectorAll('*')];
@@ -764,6 +855,35 @@
 			if (/^(svg|g)$/i.test(el.tagName) && cs.display === 'none') c.setAttribute('display', 'none');
 			c.removeAttribute('class');
 			c.removeAttribute('style');
+			const dashes = /^(path|circle|ellipse|rect|line|polyline|polygon)$/i.test(el.tagName) && cs.stroke !== 'none' ? dashPaths(el, cs) : null;
+			if (dashes) {
+				const NS = 'http://www.w3.org/2000/svg';
+				const g = document.createElementNS(NS, 'g');
+				if (c.getAttribute('transform')) g.setAttribute('transform', c.getAttribute('transform'));
+				if (c.getAttribute('opacity')) g.setAttribute('opacity', c.getAttribute('opacity'));
+				// a filled shape keeps its fill, without the stroke
+				if (cs.fill && cs.fill !== 'none') {
+					c.setAttribute('stroke', 'none');
+					c.removeAttribute('transform');
+					c.removeAttribute('opacity');
+					g.appendChild(c.cloneNode(true));
+				}
+				for (const d of dashes) {
+					const p = document.createElementNS(NS, 'path');
+					if (dashes.length === 1 && !g.childNodes.length) for (const a of ['transform', 'opacity']) if (g.getAttribute(a)) p.setAttribute(a, g.getAttribute(a));
+					p.setAttribute('d', d);
+					p.setAttribute('fill', 'none');
+					p.setAttribute('stroke', c.getAttribute('stroke'));
+					p.setAttribute('stroke-width', c.getAttribute('stroke-width'));
+					p.setAttribute('stroke-linecap', cs.strokeLinecap);
+					p.setAttribute('stroke-linejoin', cs.strokeLinejoin);
+					g.appendChild(p);
+				}
+				// one dash on an unfilled shape: just the path
+				if (g.childNodes.length === 1 && !(cs.fill && cs.fill !== 'none')) c.replaceWith(g.firstChild);
+				else if (g.childNodes.length) c.replaceWith(g);
+				else c.remove(); // every dash too short to see
+			}
 		});
 		await inlineUses(clone, w, h);
 		clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');

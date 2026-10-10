@@ -327,6 +327,7 @@ html[data-theme="dark"] .color-alpha { color: rgba(233, 236, 243, .45); }
 .cover-z-btn { position: absolute; top: 8px; right: 8px; z-index: 2; } /* over .cover-z-note, although the band is under it */
 .cover-z-note { position: relative; width: 120px; margin: -86px 0 0 auto; padding: 6px; border-radius: 6px; background: #868e96; color: #fff; font-size: 12px; }
 .cover-z-avatar { position: relative; width: 56px; height: 56px; margin: -28px 0 0 16px; border-radius: 50%; border: 3px solid #fff; background: #e64980; color: #fff; font-weight: 700; display: grid; place-items: center; }
+.donut-dash { width: 120px; height: 120px; transform: rotate(-90deg); }
 .tight-head { margin: 0; font-size: 34px; line-height: 1; letter-spacing: -.05em; }
 .mirrored { transform: scaleX(-1); }
 .upside-down { transform: rotate(180deg); }
