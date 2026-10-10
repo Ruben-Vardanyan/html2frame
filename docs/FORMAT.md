@@ -52,7 +52,7 @@ accept both formats; a prototype file is treated as a single "Desktop" screen.
 | `sh` | drop shadows `[{x, y, blur, spread, c}]` |
 | `op` | opacity 0–1 |
 | `clip` | clip children (CSS overflow ≠ visible) |
-| `ch` | children (frames, text, svg, img), in paint order |
+| `ch` | children (frames, text, svg, img), in paint order (last = top). DOM order, except that a child is moved above the siblings it overlaps when CSS paints it later (stacking layers: negative `z-index`, normal flow, positioned with `z-index` auto/0, positive `z-index`). Overlap counts what a child paints outside its own box; a child without a stacking context of its own (e.g. a plain wrapper) ranks as its highest positioned descendant, such as a fixed drawer inside a static header. |
 | `tf` | *(optional)* CSS transform `{a, b, c, d, e, f, ox, oy}`: `matrix(a, b, c, d, e, f)` around the origin `ox, oy` (px from the node's top-left). The node's box and its children are measured **untransformed**; the plugin applies rotation, scale and translate (skew dropped). Also on `svg` and `img`. |
 | `blur` | *(optional)* `filter: blur()` in px (Figma layer blur ≈ 2×). Also on `svg` and `img`. |
 | `bblur` | *(optional)* `backdrop-filter: blur()` in px (Figma background blur ≈ 2×) |
@@ -60,7 +60,7 @@ accept both formats; a prototype file is treated as a single "Desktop" screen.
 
 | `cp` | *(optional)* CSS `clip-path` as an SVG path in the node's own pixels (from `polygon()`, `inset()`, `circle()`, `ellipse()`, `path()`). The plugin makes it a mask inside the frame and moves the frame's fill and border under it. |
 
-| `lay` | *(optional)* Figma Auto Layout for a flex container, recorded only when it reproduces the measured positions: `{d: "H"\|"V", gap, p: [top, right, bottom, left], main: "MIN"\|"CENTER"\|"MAX"\|"SPACE_BETWEEN", cross: "MIN"\|"CENTER"\|"MAX"}`. Padding includes the border. Used when the plugin's "Use Auto Layout" is on. |
+| `lay` | *(optional)* Figma Auto Layout for a flex container, recorded only when it reproduces the measured positions: `{d: "H"\|"V", gap, p: [top, right, bottom, left], main: "MIN"\|"CENTER"\|"MAX"\|"SPACE_BETWEEN", cross: "MIN"\|"CENTER"\|"MAX"}`. Padding includes the border. Used when the plugin's "Use Auto Layout" is on. Left out when paint order had to move one of its in-flow children (Figma lays them out in list order). |
 | `abs` | *(optional, any node)* out of the flow (CSS `position: absolute/fixed`, background icons): absolute inside an Auto Layout parent |
 
 `filter: drop-shadow()` is added to `sh` (spread 0).

@@ -61,7 +61,19 @@
 			<div class="edge">
 				<h3>Paint order vs. z-index</h3>
 				<div class="stage"><div class="z-a">z-index 2 (red, on top)</div><div class="z-b">z-index 1 (blue)</div></div>
-				<div class="expect">Not supported: layers follow DOM order, so blue is drawn over red in Figma.</div>
+				<div class="expect">Expected: red over blue (layers follow the CSS paint order, not the DOM order).</div>
+			</div>
+
+			<div class="edge">
+				<h3>z-index inside a plain wrapper</h3>
+				<div class="stage"><div class="esc-wrap"><div class="esc-panel">z-index 5 panel (on top)</div></div><div class="esc-later">Later content, positioned, no z-index</div></div>
+				<div class="expect">Expected: the green panel over the grey box, like a menu drawer over the page. The panel sits in a wrapper with no z-index of its own, so the whole wrapper layer is moved above the later content.</div>
+			</div>
+
+			<div class="edge">
+				<h3>z-index in a flex row</h3>
+				<div class="stage"><div class="z-row"><div>A</div><div class="z-lift">B z-index 1</div><div>C</div></div></div>
+				<div class="expect">Expected: A, B, C in this order; the row keeps Auto Layout (the items don't overlap, so their paint order doesn't show).</div>
 			</div>
 
 			<div class="edge">

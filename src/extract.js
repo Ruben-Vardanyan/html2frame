@@ -553,6 +553,75 @@
 		return node;
 	}
 
+	// Paint order (CSS stacking): each node gets a key [layer, z] for sorting among its siblings, since Figma paints
+	// children in list order (last = top). Layers as in CSS: -1 negative z-index, 0 normal flow, 1 positioned (or a
+	// stacking context) with z-index auto/0, 2 positive z-index. Nodes without a key (text) are [0, 0].
+	const KEY = new WeakMap();
+	const keyOf = node => KEY.get(node) || [0, 0];
+	const cmpKey = (a, b) => a[0] - b[0] || a[1] - b[1];
+
+	// [layer, z, stacking context?] from the element's own style
+	function stackingOf(el, cs, tf) {
+		const positioned = cs.position !== 'static';
+		const parent = el.parentElement && getComputedStyle(el.parentElement).display;
+		// z-index works on positioned elements and on flex and grid items
+		const zApplies = cs.zIndex !== 'auto' && (positioned || /(flex|grid)$/.test(parent || ''));
+		const z = zApplies ? parseInt(cs.zIndex, 10) || 0 : 0;
+		const context = zApplies || /^(fixed|sticky)$/.test(cs.position) || !!tf || parseFloat(cs.opacity) < 1
+			|| (cs.filter && cs.filter !== 'none') || (cs.backdropFilter && cs.backdropFilter !== 'none')
+			|| (cs.mixBlendMode && cs.mixBlendMode !== 'normal') || cs.isolation === 'isolate'
+			|| (cs.clipPath && cs.clipPath !== 'none') || (cs.maskImage && cs.maskImage !== 'none')
+			|| /paint|layout|strict|content/.test(cs.contain || '');
+		const layer = z < 0 ? -1 : z > 0 ? 2 : positioned || context ? 1 : 0;
+		return [layer, z, context];
+	}
+
+	// what a node paints: its box plus children that spill out of it (unless it clips), e.g. a drawer below a topbar
+	const EXT = new WeakMap();
+	function extent(n) {
+		let e = EXT.get(n);
+		if (e) return e;
+		e = {x0: n.x, y0: n.y, x1: n.x + n.w, y1: n.y + n.h};
+		if (!n.clip && n.ch) for (const c of n.ch) {
+			const ce = extent(c);
+			e = {x0: Math.min(e.x0, ce.x0), y0: Math.min(e.y0, ce.y0), x1: Math.max(e.x1, ce.x1), y1: Math.max(e.y1, ce.y1)};
+		}
+		EXT.set(n, e);
+		return e;
+	}
+	const overlap = (a, b) => a.x0 < b.x1 - 0.5 && b.x0 < a.x1 - 0.5 && a.y0 < b.y1 - 0.5 && b.y0 < a.y1 - 0.5;
+
+	// Puts a child list into paint order, moving a node only above the siblings it overlaps (where the order
+	// shows); everything else keeps DOM order, so Figma's layer list still reads like the page. An Auto Layout
+	// container whose in-flow items had to move loses `lay` (Figma lays items out in list order).
+	function paintOrder(list, node) {
+		const n = list.length;
+		const keys = list.map(keyOf);
+		if (keys.every(k => !cmpKey(k, keys[0]))) return;
+		// below[j] = how many overlapping siblings must come before j
+		const ext = list.map(extent), above = list.map(() => []), below = new Array(n).fill(0);
+		for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+			if (!overlap(ext[i], ext[j])) continue;
+			if (cmpKey(keys[j], keys[i]) >= 0) { above[i].push(j); below[j]++; } else { above[j].push(i); below[i]++; }
+		}
+		// topological order, always taking the earliest node in DOM order that is free
+		const out = [], done = new Array(n).fill(false);
+		while (out.length < n) {
+			let i = 0;
+			while (done[i] || below[i]) i++;
+			done[i] = true;
+			out.push(i);
+			for (const j of above[i]) below[j]--;
+		}
+		if (out.every((v, i) => v === i)) return;
+		const sorted = out.map(i => list[i]);
+		if (node && node.lay) {
+			const flow = list.filter(c => !c.abs);
+			if (sorted.filter(c => !c.abs).some((c, i) => c !== flow[i])) delete node.lay;
+		}
+		list.splice(0, n, ...sorted);
+	}
+
 	// Transformed elements are measured with their transform switched off, so the element and everything
 	// inside it get their real (unrotated, unscaled) boxes; the transform goes on the element's node as `tf`
 	// and the plugin applies it in Figma (children follow, as in the browser).
@@ -563,6 +632,7 @@
 		// not rendered although its own style says otherwise (content-visibility: hidden, e.g. a closed <details>)
 		if (el.checkVisibility && !el.checkVisibility()) return;
 		const tf = transformOf(cs);
+		const stack = stackingOf(el, cs, tf);
 		const start = out.length;
 		if (!tf) {
 			await walkElement(el, cs, out);
@@ -583,6 +653,13 @@
 		if (mine && tf) mine.tf = tf;
 		// out of the flow (position absolute / fixed): stays absolute inside an Auto Layout parent
 		if (mine && /^(absolute|fixed)$/.test(cs.position)) mine.abs = true;
+		if (mine) {
+			// without a stacking context of its own, the element's positioned descendants paint in the parent's
+			// context: the node is lifted to the highest of them (e.g. a plain <header> holding a fixed drawer)
+			let key = stack.slice(0, 2);
+			if (!stack[2] && mine.ch) for (const c of mine.ch) if (keyOf(c)[0] > 0 && cmpKey(keyOf(c), key) > 0) key = keyOf(c);
+			if (key[0] || key[1]) KEY.set(mine, key);
+		}
 	}
 
 	// Figma Auto Layout for a flex container, when it reproduces the measured positions exactly; else null.
@@ -691,6 +768,7 @@
 		if (node) {
 			const lay = autoLayoutOf(cs, node); // "lay", not "al": text nodes use "al" for text-align
 			if (lay) node.lay = lay;
+			paintOrder(node.ch, node);
 		}
 	}
 
@@ -700,8 +778,13 @@
 		st.textContent = 'html{scrollbar-width:none!important;scroll-behavior:auto!important}::-webkit-scrollbar{display:none!important}'
 			+ '*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}';
 		document.head.appendChild(st);
-		window.scrollTo(0, 0);
-		await new Promise(r => setTimeout(r, 120));
+		// to the top at once: a smooth scroll still running (scroll-behavior: smooth, a step's scrollIntoView) would
+		// leave sticky elements measured part-way down the page
+		for (let i = 0; i < 20; i++) {
+			window.scrollTo({left: 0, top: 0, behavior: 'instant'});
+			await new Promise(r => setTimeout(r, i ? 50 : 120));
+			if (!scrollX && !scrollY) break;
+		}
 		materialisePseudo(document.body);
 		materialiseMarkers(document.body); // after ::before, so a marker comes first in the line
 		await document.fonts.ready;
@@ -714,6 +797,7 @@
 		for (const child of document.body.childNodes) {
 			if (child.nodeType === Node.ELEMENT_NODE) await walk(child, root.ch);
 		}
+		paintOrder(root.ch, null);
 		return {width: W, height: H, title: document.title, root};
 	}
 

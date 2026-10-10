@@ -14,11 +14,13 @@ const {capture, loadSettings, launchBrowser, newContext} = require('./src/captur
 const {crawl, mergePages} = require('./src/crawl');
 const {resolveScreens, PRESETS} = require('./src/screens');
 const staticServer = require('./src/static-server');
+const {trashFiles} = require('./src/trash');
 
 const ROOT = __dirname;
 const PROJECTS = path.join(ROOT, 'projects');
 const CAPTURES = path.join(ROOT, 'captures');
 const PANEL = path.join(ROOT, 'panel');
+const PLUGIN_MANIFEST = path.join(ROOT, 'figma-plugin', 'manifest.json');
 const args = process.argv.slice(2);
 const PORT = Number((args[args.indexOf('--port') + 1] || '').match(/^\d+$/) ? args[args.indexOf('--port') + 1] : 5600);
 const HOSTS = new Set(['localhost:' + PORT, '127.0.0.1:' + PORT]);
@@ -398,7 +400,14 @@ async function api(req, res, url) {
 	const m = req.method;
 
 	if (parts[0] === 'info' && m === 'GET') {
-		return send(res, 200, {presets: PRESETS, running: running && {id: running.id, kind: running.kind, title: running.title}, examples: fs.readdirSync(path.join(ROOT, 'examples')).filter(f => f.endsWith('.settings.json'))});
+		return send(res, 200, {presets: PRESETS, running: running && {id: running.id, kind: running.kind, title: running.title}, examples: fs.readdirSync(path.join(ROOT, 'examples')).filter(f => f.endsWith('.settings.json')),
+			platform: process.platform, port: PORT, pluginManifest: PLUGIN_MANIFEST});
+	}
+
+	// Help page: show the plugin's manifest.json in Explorer / Finder, for Figma's "Import plugin from manifest…"
+	if (parts[0] === 'reveal-plugin' && m === 'POST') {
+		reveal(PLUGIN_MANIFEST);
+		return send(res, 200, {shown: PLUGIN_MANIFEST});
 	}
 
 	if (parts[0] === 'projects') {
@@ -530,6 +539,26 @@ async function api(req, res, url) {
 		return fs.createReadStream(path.join(CAPTURES, file)).pipe(res);
 	}
 
+	// remove one capture (/api/captures/:file) or all of them (/api/captures): moved to the recycle bin / Trash.
+	// Panel only: the OPTIONS preflight allows GET alone, so no other page can send this.
+	if (parts[0] === 'captures' && m === 'DELETE') {
+		if (running) return fail(res, 409, 'Busy: ' + running.title + ' is still running.');
+		let files;
+		if (parts.length === 1) {
+			files = listCaptures().map(c => c.file);
+		} else {
+			const file = path.basename(parts[1]);
+			if (file !== parts[1] || !file.endsWith('.json') || !fs.existsSync(path.join(CAPTURES, file))) return fail(res, 404, 'No such capture');
+			files = [file];
+		}
+		const r = await trashFiles(files.map(f => path.join(CAPTURES, f)));
+		return send(res, r.failed.length ? 500 : 200, {
+			removed: r.removed.length,
+			failed: r.failed.map(x => ({file: path.basename(x.file), error: x.error})),
+			error: r.failed.length ? r.failed.length + ' file(s) could not be moved to the ' + (process.platform === 'win32' ? 'Recycle Bin' : 'Trash') + ': ' + r.failed[0].error : undefined,
+		});
+	}
+
 	return fail(res, 404, 'Unknown API ' + m + ' ' + url.pathname);
 }
 
@@ -548,10 +577,11 @@ const server = http.createServer(async (req, res) => {
 		if (url.pathname.startsWith('/api/')) return await api(req, res, url);
 		if (req.method !== 'GET') return fail(res, 405, 'Method not allowed');
 		if (url.pathname === '/license') return send(res, 200, fs.readFileSync(path.join(ROOT, 'LICENSE'), 'utf8'));
-		// /assets/… (the logo) from the project's assets folder; everything else from panel/
-		const fromAssets = url.pathname.startsWith('/assets/');
-		const base = fromAssets ? path.join(ROOT, 'assets') : PANEL;
-		const rel = url.pathname === '/' ? 'index.html' : decodeURIComponent(url.pathname.slice(fromAssets ? '/assets/'.length : 1));
+		// /assets/… (the logo) from the project's assets folder, /images/… (README screenshots, for the Help page)
+		// from docs/images; everything else from panel/
+		const dir = (url.pathname.match(/^\/(assets|images)\//) || [])[1];
+		const base = dir === 'assets' ? path.join(ROOT, 'assets') : dir === 'images' ? path.join(ROOT, 'docs', 'images') : PANEL;
+		const rel = url.pathname === '/' ? 'index.html' : decodeURIComponent(url.pathname.slice(dir ? dir.length + 2 : 1));
 		const file = path.join(base, path.normalize(rel));
 		if (!file.startsWith(base + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return fail(res, 404, 'Not found');
 		res.writeHead(200, {'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store'});
@@ -560,6 +590,13 @@ const server = http.createServer(async (req, res) => {
 		fail(res, e.status || 500, String(e && e.message || e));
 	}
 });
+
+// selects the file in Explorer / Finder (Linux: opens its folder)
+function reveal(file) {
+	// Explorer wants /select,"path" exactly as written (Node's own quoting of the whole argument is not understood)
+	const cmd = process.platform === 'win32' ? ['explorer.exe', ['/select,"' + file + '"']] : process.platform === 'darwin' ? ['open', ['-R', file]] : ['xdg-open', [path.dirname(file)]];
+	spawn(cmd[0], cmd[1], {detached: true, stdio: 'ignore', windowsVerbatimArguments: process.platform === 'win32'}).on('error', () => {}).unref();
+}
 
 function openBrowser(u) {
 	const cmd = process.platform === 'win32' ? ['cmd', ['/c', 'start', '', u]] : process.platform === 'darwin' ? ['open', [u]] : ['xdg-open', [u]];

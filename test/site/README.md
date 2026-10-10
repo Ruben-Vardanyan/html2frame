@@ -24,7 +24,7 @@ the browser falls back to system fonts and sizes change slightly.
 | `product.html?id=1…4` | A page that needs its `?query`; breadcrumbs with ::before, gallery, colour radios, custom select, table |
 | `login.html` | Any e-mail and any non-empty password sign in (localStorage); nothing is checked |
 | `account.html` | Needs a login (otherwise redirects to `login.html?next=…`, reported as a warning); stats, gradient progress bars, zebra table, badges |
-| `edge-cases.html` | Known limits, each card saying what Figma should show today: hidden elements, counters, list markers, z-index, transforms, text-shadow/blend/filter, clip-path, `<use>` sprites, canvas/video/iframe, columns, vertical text, animation, fixed elements, details/summary |
+| `edge-cases.html` | Known limits, each card saying what Figma should show today: hidden elements, counters, list markers, z-index paint order (also inside a plain wrapper and in a flex row), transforms, text-shadow/blend/filter, clip-path, `<use>` sprites, canvas/video/iframe, columns, vertical text, animation, fixed elements, details/summary |
 
 ## Variants and states
 

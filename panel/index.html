@@ -5,6 +5,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>html2frame</title>
 	<link rel="stylesheet" href="panel.css">
+	<script src="theme.js"></script>
 	<link rel="icon" type="image/png" href="/assets/logo-64.png">
 	<script src="panel.js" defer></script>
 </head>
@@ -32,6 +33,12 @@
 				<button class="btn ghost" id="newProject" type="button">+ New</button>
 				<span class="save-state" id="saveState"></span>
 				<button class="btn" id="saveProject" type="button" disabled>Save</button>
+				<a class="btn ghost" href="help.html" title="How to add the html2frame plugin to Figma">Help</a>
+				<div class="seg theme-switch" role="radiogroup" aria-label="Theme">
+					<label title="Same as your system"><input type="radio" name="theme" value="system" aria-label="System theme"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.75" y="2.75" width="12.5" height="8.5" rx="1.5"/><path d="M5.5 14h5M8 11.5V14" stroke-linecap="round"/></svg></label>
+					<label title="Light"><input type="radio" name="theme" value="light" aria-label="Light theme"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1"/></svg></label>
+					<label title="Dark"><input type="radio" name="theme" value="dark" aria-label="Dark theme"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M13.5 9.6A5.75 5.75 0 0 1 6.4 2.5a5.75 5.75 0 1 0 7.1 7.1z"/></svg></label>
+				</div>
 			</div>
 		</div>
 	</header>
@@ -168,15 +175,19 @@
 				<div class="result" id="captureResult" hidden></div>
 				<div class="figma-hint">
 					<b>In Figma:</b> Plugins → Development → html2frame → <b>Latest from panel</b>, then choose sizes and import.
+					First time? <a href="help.html">Add the plugin to Figma</a>.
 				</div>
-				<h3>Recent captures</h3>
+				<div class="captures-head"><h3>Recent captures</h3><button class="link danger" id="removeAllCaptures" type="button" hidden>Remove all</button></div>
 				<ul class="captures" id="captureList"></ul>
+				<div class="error" id="captureListError"></div>
 			</section>
 		</div>
 	</main>
 
 	<footer class="foot">
 		<span>html2frame</span>
+		<span>·</span>
+		<a href="help.html">Help</a>
 		<span>·</span>
 		<a href="/license" target="_blank" rel="noopener">MIT License</a>
 		<span>·</span>

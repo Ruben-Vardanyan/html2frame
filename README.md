@@ -49,11 +49,13 @@ that is painted, and the plugin rebuilds it in Figma node by node.
    The first start installs one package (`playwright-core`, about 13 MB), then your browser opens
    **http://localhost:5600**. Keep the black terminal window open while you work; close it to stop the panel.
 3. Load the Figma plugin (once): Figma desktop app → **Plugins → Development → Import plugin from manifest…** →
-   choose **`figma-plugin/manifest.json`** in this folder.
+   choose **`figma-plugin/manifest.json`** in this folder. The panel's **Help** page walks you through it for
+   Windows and macOS, with the full path to copy and a button that shows the file in Explorer / Finder.
 
 ## Capture a site with the control panel
 
-The panel is one page with five numbered cards. Changes are saved with **Save** (capturing saves too).
+The panel is one page with six numbered cards. Changes are saved with **Save** (capturing saves too). The
+switch at the top right picks the panel's look: the same as your system, light or dark.
 
 ![The control panel: project and screen sizes](docs/images/panel-overview.png)
 
@@ -102,6 +104,8 @@ buttons: **⋯** steps before the capture (e.g. `[{"click": ".menu-button"}]` fo
 to show its errors), **⧉** duplicate a page as an extra state, **×** remove. **+ Add a page** adds one by hand.
 
 **6. Capture.** Click **Capture** and follow the progress. The estimate shows how many frames you will get.
+Under **Recent captures**, **×** moves one capture file to the Recycle Bin (Trash on macOS) and **Remove all**
+moves all of them, so you can bring one back from there.
 
 ![Capture finished](docs/images/panel-capture.png)
 
@@ -156,7 +160,7 @@ in [`docs/FORMAT.md`](docs/FORMAT.md).
   WebP images; canvas, video and iframes as images.
 - **Forms:** values, placeholders, password dots, selects, checkboxes, radios and toggles.
 - **Lists and details:** bullets, numbers and the triangles of `<details>`.
-- **Not (yet):** radial gradients, CSS counters, skew transforms, z-index paint order, text that overflows its box
+- **Not (yet):** radial gradients, CSS counters, skew transforms, text that overflows its box
   with an ellipsis, and Auto Layout for plain stacked blocks or grids. The test site's *Edge cases* page
   ([`test/site/edge-cases.html`](test/site/edge-cases.html)) shows each case and what Figma should show.
 
