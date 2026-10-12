@@ -294,7 +294,7 @@ building.
    project built from the example (neutral folder path, no personal data); all local links checked. Not yet
    followed on a Mac.
 7. Figma Community release (D18). Prepare: manifest `networkAccess: {allowedDomains: ["http://localhost:5600"],
-   reasoning: "…"}` (instead of `devAllowedDomains`), a 128×128 icon (`assets/logo-128.png`), a cover image, name/tagline/description
+   reasoning: "…"}` (instead of `devAllowedDomains`), a 128×128 icon (`assets/icon-128.png`, drawn from `assets/icon.svg`), a cover image, name/tagline/description
    with a link to the GitHub repo and guide, and answers for Figma's data-security form (no data leaves the
    computer; the only network access is the local panel). The owner submits it in the desktop app (Plugins →
    Manage plugins → Publish; two-factor authentication on) and puts the plugin ID Figma assigns into the

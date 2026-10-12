@@ -577,7 +577,7 @@ const server = http.createServer(async (req, res) => {
 		if (url.pathname.startsWith('/api/')) return await api(req, res, url);
 		if (req.method !== 'GET') return fail(res, 405, 'Method not allowed');
 		if (url.pathname === '/license') return send(res, 200, fs.readFileSync(path.join(ROOT, 'LICENSE'), 'utf8'));
-		// /assets/… (the logo) from the project's assets folder, /images/… (README screenshots, for the Help page)
+		// /assets/… (the icon) from the project's assets folder, /images/… (README screenshots, for the Help page)
 		// from docs/images; everything else from panel/
 		const dir = (url.pathname.match(/^\/(assets|images)\//) || [])[1];
 		const base = dir === 'assets' ? path.join(ROOT, 'assets') : dir === 'images' ? path.join(ROOT, 'docs', 'images') : PANEL;

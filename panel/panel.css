@@ -67,7 +67,7 @@ a:hover { text-decoration: underline; }
 .top { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--card) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
 .top-inner { max-width: 1040px; margin: 0 auto; padding: 10px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .brand { display: flex; align-items: center; gap: 10px; }
-.logo { width: 40px; height: 40px; flex: none; object-fit: contain; }
+.logo { width: 40px; height: 40px; flex: none; } /* inline SVG, follows the theme (assets/icon-adaptive.svg) */
 .title { font-weight: 600; font-size: 14px; }
 .subtitle { color: var(--text-2); font-size: 11px; }
 .project-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
