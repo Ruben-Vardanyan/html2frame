@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/logo-256.png" alt="html2frame logo" width="160"></p>
+<p><img src="assets/icon-256.png" alt="html2frame icon" width="120"></p>
 
 # html2frame
 

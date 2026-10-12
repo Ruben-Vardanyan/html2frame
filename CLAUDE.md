@@ -22,7 +22,7 @@ chosen screen sizes. Status: **v1 is built** (steps 1–6 of
 | `src/crawl.js` | **Done.** Crawler + CLI: `node src/crawl.js projects/x.json --save projects/x.json` (guest + each account; templates folded into "similar"). |
 | `server.js`, `panel/`, `start.bat`, `start.command` | **Done.** Control panel on http://localhost:5600 (API in `docs/PLAN.md`); launchers for Windows and macOS. |
 | `src/trash.js` | Moves files to the Recycle Bin / Trash (Windows, macOS with a `~/.Trash` fallback, Linux); used by the panel's "Recent captures" remove buttons. |
-| `assets/` | The owner's logo: `logo.png` (original, 828×828, transparent) and trimmed squares `logo-256/128/64.png` (panel header and favicon, README, plugin header embedded as base64, Figma Community icon). |
+| `assets/` | App icon, `</>` in a Figma selection box, in two forms. `icon.svg`: on a dark tile, rendered to `icon-256/128/64.png` (Figma Community icon, README, PNG favicon fallback); re-render the PNGs whenever the SVG changes. `icon-adaptive.svg`: transparent, dark `</>` on light screens and white on dark (panel SVG favicon); the same shapes are inlined in the panel headers (`panel/index.html`, `help.html`) and the plugin header (`figma-plugin/ui.html`), coloured from the page's theme variables, so keep all three in step with it. |
 | `test/compare-capture.js` | Compares page sizes of two capture files (exact). |
 | `test/prototype-sample.json` | 3 pages in the old prototype format; the plugin must keep importing it. |
 | `figma-plugin/` | **Done (v1).** Generic importer: v1 + prototype files, panel or file; layout "one page" with a Section per screen (default) or "page per screen" (D14). |
