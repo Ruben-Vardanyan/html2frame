@@ -1,6 +1,6 @@
 // html2frame — MIT License, © 2026 Ruben Vardanyan (see LICENSE)
 // panel.js — the control panel page (vanilla JS). Edits one project's settings (docs/PLAN.md "Settings file"),
-// runs "Find pages" (crawl) and "Capture" as server jobs and follows them over Server-Sent Events.
+// runs "Find pages" (crawl) and "Capture" as server jobs, follows them over Server-Sent Events and can cancel them.
 'use strict';
 
 const $ = id => document.getElementById(id);
@@ -62,6 +62,7 @@ let name = null; // current project file name
 let project = null; // its settings
 let dirty = false;
 let busy = false;
+let jobId = null; // the running job, for Cancel
 
 // ---- server -----------------------------------------------------------------------------------------
 
@@ -73,9 +74,10 @@ async function call(method, url, body) {
 }
 
 // follow a job: onEvent(ev) for log / progress; resolves with the result, rejects with the error
-function follow(jobId, onEvent) {
+// ({cancelled: true} when it was cancelled)
+function follow(id, onEvent) {
 	return new Promise((resolve, reject) => {
-		const es = new EventSource('/api/jobs/' + jobId + '/events');
+		const es = new EventSource('/api/jobs/' + id + '/events');
 		es.onmessage = m => {
 			const ev = JSON.parse(m.data);
 			if (ev.type === 'done') {
@@ -84,6 +86,9 @@ function follow(jobId, onEvent) {
 			} else if (ev.type === 'error') {
 				es.close();
 				reject(new Error(ev.message));
+			} else if (ev.type === 'cancelled') {
+				es.close();
+				reject(Object.assign(new Error('Cancelled'), {cancelled: true}));
 			} else onEvent(ev);
 		};
 		es.onerror = () => {
@@ -98,7 +103,40 @@ function setBusy(b, text) {
 	$('busyChip').hidden = !b;
 	$('busyText').textContent = text || 'Working…';
 	for (const id of ['findPages', 'captureBtn', 'saveProject', 'newProject', 'projectSelect', 'projectBtn', 'deleteProject', 'removeAllCaptures']) $(id).disabled = b || (id === 'saveProject' && !dirty);
+	// while a job runs the project cannot change: the cards, the page table and the Capture button are inert
+	// (rows drawn later inherit it). Page search, the logs, Cancel and downloads stay usable.
+	document.querySelectorAll('[data-lock]').forEach(x => { x.inert = b; });
 	document.querySelectorAll('[data-test-login], [data-remove-capture]').forEach(x => { x.disabled = b; });
+	if (!b) {
+		jobId = null;
+		$('crawlCancel').hidden = true;
+		$('captureCancel').hidden = true;
+	}
+	if ($('allCaptures').open) renderAllCaptures();
+}
+
+// the Cancel button of the job that just started
+function showCancel(button, id) {
+	jobId = id;
+	const b = $(button);
+	b.hidden = false;
+	b.disabled = false;
+	b.textContent = 'Cancel';
+}
+
+// the job stops as soon as its browser closes and saves nothing; follow() then rejects with {cancelled: true}
+async function cancelJob(e) {
+	const b = e.currentTarget;
+	if (!jobId) return;
+	b.disabled = true;
+	b.textContent = 'Cancelling…';
+	try {
+		await call('POST', '/api/jobs/' + jobId + '/cancel');
+	} catch (err) {
+		b.disabled = false;
+		b.textContent = 'Cancel';
+		alert('Could not cancel: ' + err.message);
+	}
 }
 
 // ---- dirty / save -----------------------------------------------------------------------------------
@@ -685,15 +723,41 @@ function checkStorage() {
 
 // ---- 5. pages ---------------------------------------------------------------------------------------
 
+const OPEN_ICON = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2.5h4v4M13.5 2.5L7.5 8.5M11.5 9.5v3a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3"/></svg>';
+
+// where "open" goes: an address site directly; a folder through the panel server, which serves it (saved folder)
+function pageHref(p) {
+	const where = p || '/';
+	if (project.source && project.source.url) {
+		try {
+			return new URL(where, new URL(project.source.url).origin + '/').href;
+		} catch (e) {
+			return '#';
+		}
+	}
+	return '/api/open?project=' + encodeURIComponent(name) + '&path=' + encodeURIComponent(where);
+}
+
+let pageRowEls = []; // the drawn rows [{p, tr, stepsRow, simHit}], for the search
+
 function renderPages() {
 	const rows = $('pageRows');
 	rows.innerHTML = '';
+	pageRowEls = [];
 	const pages = project.pages || (project.pages = []);
 	const accounts = (project.accounts || []).map(a => a.name);
 	pages.forEach((p, i) => {
 		const tr = el('tr', {class: p.skip ? 'off' : ''});
 		const include = el('input', {type: 'checkbox', checked: !p.skip, onchange: e => { if (e.target.checked) delete p.skip; else p.skip = true; tr.className = p.skip ? 'off' : ''; markDirty(); updateAllBox(); }});
 		const text = (k, ph) => el('input', {value: p[k] || '', placeholder: ph, oninput: e => { if (e.target.value) p[k] = e.target.value; else delete p[k]; markDirty(); }});
+		const pathInput = text('path', '/page.html');
+		const open = el('a', {class: 'icon-btn open-page', target: '_blank', rel: 'noopener', href: pageHref(p.path), title: 'Open in your browser (as a visitor; steps are not run)', 'aria-label': 'Open this page in your browser'});
+		open.innerHTML = OPEN_ICON;
+		pathInput.addEventListener('input', () => { open.href = pageHref(p.path); });
+		const groupInput = text('group', 'Pages');
+		groupInput.setAttribute('list', 'groupList');
+		groupInput.addEventListener('change', refreshGroupList);
+		const simHit = el('div', {class: 'sim-hit muted small', hidden: true});
 		const acc = el('select', {onchange: e => { if (e.target.value) p.account = e.target.value; else delete p.account; markDirty(); }},
 			el('option', {value: ''}, '—'), accounts.map(n => el('option', {value: n}, n)));
 		acc.value = p.account || '';
@@ -749,19 +813,100 @@ function renderPages() {
 		tr.append(
 			el('td', {class: 'c-check'}, include),
 			el('td', {}, text('name', 'Name')),
-			el('td', {}, text('path', '/page.html')),
-			el('td', {}, text('group', 'Pages')),
+			el('td', {}, el('div', {class: 'addr'}, pathInput, open), simHit),
+			el('td', {}, groupInput),
 			el('td', {}, acc),
 			el('td', {class: 'c-more'}, tagBox, more,
 				el('button', {class: 'icon-btn', type: 'button', title: 'Duplicate as a new state (e.g. "menu open")', onclick: () => { pages.splice(i + 1, 0, Object.assign(JSON.parse(JSON.stringify(p)), {name: (p.name || 'Page') + ' — state', steps: p.steps || []})); markDirty(); renderPages(); }}, '⧉'),
 				el('button', {class: 'icon-btn danger', type: 'button', title: 'Remove from the list', onclick: () => { pages.splice(i, 1); markDirty(); renderPages(); }}, '×')));
 		rows.append(tr, stepsRow);
+		pageRowEls.push({p, tr, stepsRow, simHit});
 	});
-	$('pageCount').textContent = pages.filter(p => !p.skip).length + (pages.some(p => p.skip) ? ' / ' + pages.length : '');
 	$('noPages').hidden = pages.length > 0;
-	updateAllBox();
+	refreshGroupList();
+	applyPageFilter();
 	updateSummary();
 }
+
+// the groups already used, offered while typing a group
+function refreshGroupList() {
+	const groups = [...new Set((project.pages || []).map(p => p.group).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+	$('groupList').replaceChildren(...groups.map(g => el('option', {value: g})));
+}
+
+// ---- page search: hides the rows that do not match (the list and its order stay as they are) ----------
+
+function pageQuery() {
+	return $('pageSearch').value.trim().toLowerCase();
+}
+
+// a page matches by name, address, group or account; or by one of its "similar" addresses, which is shown
+function applyPageFilter() {
+	const raw = $('pageSearch').value.trim(), q = raw.toLowerCase();
+	let shown = 0;
+	for (const r of pageRowEls) {
+		const p = r.p;
+		const direct = !q || [p.name, p.path, p.group, p.account].some(v => v && String(v).toLowerCase().includes(q));
+		const sim = !direct && (p.similar || []).find(x => String(x).toLowerCase().includes(q));
+		const on = direct || !!sim;
+		r.tr.classList.toggle('filtered', !on);
+		r.stepsRow.classList.toggle('filtered', !on);
+		r.simHit.hidden = !sim;
+		if (sim) {
+			const i = sim.toLowerCase().indexOf(q);
+			r.simHit.replaceChildren('Similar address: ', sim.slice(0, i), el('mark', {}, sim.slice(i, i + q.length)), sim.slice(i + q.length));
+		}
+		if (on) shown++;
+	}
+	const total = pageRowEls.length;
+	$('pageTools').hidden = !total;
+	$('pageSearchInfo').textContent = !q ? '' : shown ? shown + ' of ' + total + ' shown' : 'No page matches “' + raw + '”';
+	$('setGroupBtn').textContent = q ? 'Set group for the ' + shown + ' shown…' : 'Set group for all ' + total + '…';
+	$('setGroupBtn').disabled = !shown;
+	updateAllBox();
+}
+
+function shownPages() {
+	return pageRowEls.filter(r => !r.tr.classList.contains('filtered')).map(r => r.p);
+}
+
+function closeGroupForm() {
+	$('setGroupForm').hidden = true;
+	$('setGroupBtn').hidden = false;
+}
+
+// one group for every page shown (all of them without a search); in Figma a group can be its own section
+function applyGroup() {
+	const g = $('setGroupInput').value.trim();
+	if (!g) return $('setGroupInput').focus();
+	const list = pageQuery() ? shownPages() : project.pages || [];
+	if (!pageQuery() && list.length > 1 && !confirm('Put all ' + list.length + ' pages in the group "' + g + '"?')) return;
+	for (const p of list) p.group = g;
+	closeGroupForm();
+	markDirty();
+	renderPages();
+}
+
+$('pageSearch').addEventListener('input', applyPageFilter);
+$('pageSearch').addEventListener('keydown', e => {
+	if (e.key === 'Escape' && e.target.value) {
+		e.preventDefault();
+		e.target.value = '';
+		applyPageFilter();
+	}
+});
+$('setGroupBtn').onclick = () => {
+	$('setGroupBtn').hidden = true;
+	$('setGroupForm').hidden = false;
+	$('setGroupInput').value = '';
+	$('setGroupInput').focus();
+};
+$('setGroupCancel').onclick = closeGroupForm;
+$('setGroupApply').onclick = applyGroup;
+$('setGroupInput').addEventListener('keydown', e => {
+	if (e.key === 'Enter') applyGroup();
+	if (e.key === 'Escape') closeGroupForm();
+});
 
 // The screens a page can be limited to: the project's sizes (a phone or tablet means both orientations), plus any
 // other id already in the page (e.g. "tablet-portrait" written by hand), so saving keeps it.
@@ -779,12 +924,23 @@ function pageScreenOptions(p) {
 	return out;
 }
 
+// the header box ticks or unticks the pages shown (all of them without a search); the count is the whole list
 function updateAllBox() {
 	const pages = project.pages || [];
+	const shown = pageQuery() ? shownPages() : pages;
+	const ticked = shown.filter(p => !p.skip).length;
+	$('allPages').checked = shown.length > 0 && ticked === shown.length;
+	$('allPages').indeterminate = ticked > 0 && ticked < shown.length;
+	$('allPages').title = pageQuery() ? 'All shown' : 'All';
 	const on = pages.filter(p => !p.skip).length;
-	$('allPages').checked = pages.length > 0 && on === pages.length;
-	$('allPages').indeterminate = on > 0 && on < pages.length;
 	$('pageCount').textContent = on + (on < pages.length ? ' / ' + pages.length : '');
+}
+
+function onCrawlEvent(ev) {
+	if (ev.type === 'log') {
+		$('crawlLog').textContent += ev.text + '\n';
+		$('crawlLog').scrollTop = 1e9;
+	}
 }
 
 async function findPages() {
@@ -792,21 +948,18 @@ async function findPages() {
 		if (dirty) await save();
 		setBusy(true, 'Finding pages…');
 		$('crawlJob').hidden = false;
+		$('crawlJob').querySelector('.spinner').hidden = false;
 		$('crawlLog').textContent = '';
 		$('crawlStatus').textContent = 'Finding pages… (opening the site in the browser and following its links)';
 		const {job} = await call('POST', '/api/crawl', {project: name, save: true, unlinked: $('crawlUnlinked').checked});
-		const r = await follow(job, ev => {
-			if (ev.type === 'log') {
-				$('crawlLog').textContent += ev.text + '\n';
-				$('crawlLog').scrollTop = 1e9;
-			}
-		});
+		showCancel('crawlCancel', job);
+		const r = await follow(job, onCrawlEvent);
 		project = await call('GET', '/api/projects/' + encodeURIComponent(name));
 		renderPages();
 		$('crawlStatus').textContent = 'Found ' + r.pages.length + ' page(s)' + (r.unlinked.length ? ' and ' + r.unlinked.length + ' not linked' : '') + '; ' + r.added + ' new added to the list.' + (r.truncated ? ' Stopped at the page limit.' : '');
 		$('crawlJob').querySelector('.spinner').hidden = true;
 	} catch (e) {
-		$('crawlStatus').textContent = 'Could not find pages: ' + e.message;
+		$('crawlStatus').textContent = e.cancelled ? 'Cancelled. No pages were added.' : 'Could not find pages: ' + e.message;
 		$('crawlJob').querySelector('.spinner').hidden = true;
 	} finally {
 		setBusy(false);
@@ -853,6 +1006,17 @@ function updateSummary() {
 	$('captureBtn').disabled = busy || !pages;
 }
 
+function onCaptureEvent(ev) {
+	if (ev.type === 'log') {
+		$('captureLog').textContent += ev.text + '\n';
+		$('captureLog').scrollTop = 1e9;
+	}
+	if (ev.type === 'progress') {
+		$('captureBar').style.width = Math.round(100 * ev.done / ev.total) + '%';
+		$('captureStatus').textContent = ev.done + ' / ' + ev.total + ' · ' + ev.screen + (ev.variant ? ' · ' + ev.variant : '') + ' · ' + ev.page;
+	}
+}
+
 async function runCapture() {
 	try {
 		if (dirty) await save();
@@ -864,16 +1028,8 @@ async function runCapture() {
 		$('captureBar').style.width = '0';
 		$('captureStatus').textContent = 'Starting the browser…';
 		const {job} = await call('POST', '/api/capture', {project: name});
-		const r = await follow(job, ev => {
-			if (ev.type === 'log') {
-				$('captureLog').textContent += ev.text + '\n';
-				$('captureLog').scrollTop = 1e9;
-			}
-			if (ev.type === 'progress') {
-				$('captureBar').style.width = Math.round(100 * ev.done / ev.total) + '%';
-				$('captureStatus').textContent = ev.done + ' / ' + ev.total + ' · ' + ev.screen + (ev.variant ? ' · ' + ev.variant : '') + ' · ' + ev.page;
-			}
-		});
+		showCancel('captureCancel', job);
+		const r = await follow(job, onCaptureEvent);
 		$('captureStatus').textContent = 'Done.';
 		const box = $('captureResult');
 		box.innerHTML = '';
@@ -883,7 +1039,7 @@ async function runCapture() {
 		box.hidden = false;
 		renderCaptures();
 	} catch (e) {
-		$('captureStatus').textContent = 'Capture failed: ' + e.message;
+		$('captureStatus').textContent = e.cancelled ? 'Cancelled. Nothing was saved.' : 'Capture failed: ' + e.message;
 	} finally {
 		setBusy(false);
 	}
@@ -891,32 +1047,84 @@ async function runCapture() {
 
 const TRASH = /Win/.test(navigator.platform || navigator.userAgent) ? 'Recycle Bin' : 'Trash';
 
-async function renderCaptures() {
-	const list = await call('GET', '/api/captures');
-	const ul = $('captureList');
-	ul.innerHTML = '';
-	for (const c of list.slice(0, 8)) {
-		ul.append(el('li', {}, el('span', {}, c.file), el('span', {class: 'muted'}, new Date(c.modified).toLocaleString() + ' · ' + (c.size / 1048576).toFixed(1) + ' MB · ', el('a', {href: '/api/captures/' + encodeURIComponent(c.file) + '?download'}, 'Download'),
-			el('button', {class: 'icon-btn danger', type: 'button', 'data-remove-capture': true, title: 'Move to the ' + TRASH, disabled: busy, onclick: () => removeCaptures(c.file, 'Move "' + c.file + '" to the ' + TRASH + '?')}, '×'))));
-	}
-	if (list.length > 8) ul.append(el('li', {class: 'muted'}, '… and ' + (list.length - 8) + ' older'));
-	if (!list.length) ul.append(el('li', {class: 'muted'}, 'None yet.'));
-	const total = list.reduce((s, c) => s + c.size, 0);
-	$('removeAllCaptures').hidden = !list.length;
-	$('removeAllCaptures').onclick = () => removeCaptures(null, 'Move all ' + list.length + ' capture(s) (' + (total / 1048576).toFixed(1) + ' MB) to the ' + TRASH + '?\n\nThis includes older captures not shown in the list.');
+let captureFiles = []; // every capture file, newest first: [{file, size, modified, project?, capturedAt?}]
+
+function mb(bytes) {
+	return (bytes / 1048576).toFixed(1) + ' MB';
 }
 
-// one capture by file name, or all of them (file = null); they go to the recycle bin / Trash
-async function removeCaptures(file, question) {
+// one capture in a list: file, (project,) time, size, Download, remove
+function captureItem(c, withProject) {
+	return el('li', {}, el('span', {class: 'cap-file'}, c.file), el('span', {class: 'muted'}, (withProject && c.project ? c.project + ' · ' : '') + new Date(c.modified).toLocaleString() + ' · ' + mb(c.size) + ' · ', el('a', {href: '/api/captures/' + encodeURIComponent(c.file) + '?download'}, 'Download'),
+		el('button', {class: 'icon-btn danger', type: 'button', 'data-remove-capture': true, title: 'Move to the ' + TRASH, disabled: busy, onclick: () => removeCaptures(c.file, 'Move "' + c.file + '" to the ' + TRASH + '?')}, '×')));
+}
+
+async function renderCaptures() {
+	const list = captureFiles = await call('GET', '/api/captures');
+	const ul = $('captureList');
+	ul.innerHTML = '';
+	for (const c of list.slice(0, 8)) ul.append(captureItem(c, false));
+	if (!list.length) ul.append(el('li', {class: 'muted'}, 'None yet.'));
+	const total = list.reduce((s, c) => s + c.size, 0);
+	$('viewAllCaptures').hidden = !list.length;
+	$('viewAllCaptures').textContent = 'View all (' + list.length + ')';
+	$('removeAllCaptures').hidden = !list.length;
+	$('removeAllCaptures').onclick = () => removeCaptures(null, 'Move all ' + list.length + ' capture(s) (' + mb(total) + ') to the ' + TRASH + '?\n\nThis includes older captures not shown in the list.');
+	if ($('allCaptures').open) renderAllCaptures();
+}
+
+// one capture by file name, some (a list of names), or all of them (null); they go to the recycle bin / Trash
+async function removeCaptures(files, question) {
 	if (busy || !confirm(question)) return;
 	$('captureListError').textContent = '';
+	$('capAllError').textContent = '';
 	try {
-		await call('DELETE', '/api/captures' + (file ? '/' + encodeURIComponent(file) : ''));
+		if (Array.isArray(files)) await call('DELETE', '/api/captures', {files});
+		else await call('DELETE', '/api/captures' + (files ? '/' + encodeURIComponent(files) : ''));
 	} catch (e) {
-		$('captureListError').textContent = e.message;
+		$($('allCaptures').open ? 'capAllError' : 'captureListError').textContent = e.message;
 	}
 	renderCaptures();
 }
+
+// ---- all captures (dialog): search, project and date filters ------------------------------------------
+
+function openAllCaptures() {
+	const projects = [...new Set(captureFiles.map(c => c.project).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+	const current = project && project.name;
+	if (projects.includes(current)) projects.unshift(...projects.splice(projects.indexOf(current), 1)); // current first
+	const sel = $('capProject'), keep = sel.value;
+	sel.replaceChildren(el('option', {value: ''}, 'All projects'), ...projects.map(p => el('option', {value: p}, p)));
+	sel.value = projects.includes(keep) ? keep : '';
+	$('capAllError').textContent = '';
+	renderAllCaptures();
+	$('allCaptures').showModal();
+	$('capSearch').focus();
+}
+
+function shownCaptures() {
+	const q = $('capSearch').value.trim().toLowerCase(), proj = $('capProject').value, days = Number($('capDate').value);
+	const from = !days ? 0 : days === 1 ? new Date().setHours(0, 0, 0, 0) : Date.now() - days * 864e5;
+	return captureFiles.filter(c => (!q || c.file.toLowerCase().includes(q) || (c.project || '').toLowerCase().includes(q))
+		&& (!proj || c.project === proj) && (!from || Date.parse(c.modified) >= from));
+}
+
+function renderAllCaptures() {
+	const list = shownCaptures();
+	const size = list.reduce((s, c) => s + c.size, 0);
+	$('capAllList').replaceChildren(...list.map(c => captureItem(c, true)));
+	if (!list.length) $('capAllList').append(el('li', {class: 'muted'}, captureFiles.length ? 'No capture matches.' : 'None yet.'));
+	$('capAllInfo').textContent = list.length + ' of ' + captureFiles.length + ' · ' + mb(size);
+	$('capRemoveShown').textContent = 'Remove shown (' + list.length + ')';
+	$('capRemoveShown').disabled = busy || !list.length;
+	$('capRemoveShown').onclick = () => removeCaptures(list.map(c => c.file), 'Move the ' + list.length + ' capture(s) shown (' + mb(size) + ') to the ' + TRASH + '?');
+}
+
+$('viewAllCaptures').onclick = openAllCaptures;
+$('allCapturesClose').onclick = () => $('allCaptures').close();
+$('capSearch').addEventListener('input', renderAllCaptures);
+$('capProject').onchange = renderAllCaptures;
+$('capDate').onchange = renderAllCaptures;
 
 // ---- folder browser ---------------------------------------------------------------------------------
 
@@ -1052,6 +1260,7 @@ $('addAccount').onclick = () => {
 	renderPages();
 };
 $('addPage').onclick = () => {
+	$('pageSearch').value = ''; // the new row must be visible
 	project.pages = (project.pages || []).concat({name: '', path: '/', group: 'Pages'});
 	markDirty();
 	renderPages();
@@ -1059,7 +1268,7 @@ $('addPage').onclick = () => {
 	inputs[inputs.length - 1].focus();
 };
 $('allPages').onchange = e => {
-	for (const p of project.pages || []) {
+	for (const p of pageQuery() ? shownPages() : project.pages || []) {
 		if (e.target.checked) delete p.skip; else p.skip = true;
 	}
 	markDirty();
@@ -1067,20 +1276,33 @@ $('allPages').onchange = e => {
 };
 $('findPages').onclick = findPages;
 $('captureBtn').onclick = runCapture;
+$('crawlCancel').onclick = cancelJob;
+$('captureCancel').onclick = cancelJob;
 
 (async () => {
 	info = await call('GET', '/api/info');
 	await loadProjects();
 	if (info.running) {
-		setBusy(true, info.running.title + '…');
-		const target = info.running.kind === 'crawl' ? 'crawlStatus' : 'captureStatus';
-		if (info.running.kind === 'capture') $('captureProgress').hidden = false;
-		else $('crawlJob').hidden = false;
-		$(target).textContent = info.running.title + ' is running…';
-		follow(info.running.id, () => {}).finally(() => {
-			setBusy(false);
-			$(target).textContent = info.running.title + ' finished.';
-			renderCaptures();
-		});
+		const job = info.running, crawling = job.kind === 'crawl';
+		setBusy(true, job.title + '…');
+		const target = crawling ? 'crawlStatus' : 'captureStatus';
+		if (crawling) $('crawlJob').hidden = false;
+		else {
+			$('captureProgress').hidden = false;
+			$('captureLogBox').hidden = false;
+		}
+		$(target).textContent = job.title + ' is running…';
+		showCancel(crawling ? 'crawlCancel' : 'captureCancel', job.id);
+		follow(job.id, crawling ? onCrawlEvent : onCaptureEvent)
+			.then(() => ' finished.', e => (e.cancelled ? ' was cancelled. Nothing was saved.' : ' failed: ' + e.message))
+			.then(async end => {
+				setBusy(false);
+				if (crawling) {
+					$('crawlJob').querySelector('.spinner').hidden = true;
+					if (project && !dirty) await openProject(name); // the found pages were saved to the project
+				}
+				$(target).textContent = job.title + end;
+				renderCaptures();
+			});
 	}
 })();

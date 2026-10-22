@@ -1,8 +1,8 @@
 // html2frame — MIT License, © 2026 Ruben Vardanyan (see LICENSE)
 // server.js — the html2frame control panel (D1): http://localhost:5600, bound to 127.0.0.1 only.
 // Serves panel/ and a small JSON API: projects, a folder browser, test logins, crawling ("Find pages") and
-// capturing as background jobs with live progress (Server-Sent Events), and the capture files, including
-// /api/captures/latest for the Figma plugin's "Latest from panel" (D7).
+// capturing as background jobs with live progress (Server-Sent Events) and Cancel, opening a page of the site,
+// and the capture files, including /api/captures/latest for the Figma plugin's "Latest from panel" (D7).
 // Usage: node server.js [--open] [--port 5600]
 
 const http = require('http');
@@ -94,8 +94,26 @@ function listProjects() {
 function listCaptures() {
 	return fs.readdirSync(CAPTURES).filter(f => f.endsWith('.json')).map(f => {
 		const st = fs.statSync(path.join(CAPTURES, f));
-		return {file: f, size: st.size, modified: st.mtime.toISOString()};
+		return Object.assign({file: f, size: st.size, modified: st.mtime.toISOString()}, captureHead(path.join(CAPTURES, f)));
 	}).sort((a, b) => b.modified.localeCompare(a.modified));
+}
+
+// A capture file starts with its head ({"version":1,"project":"…","capturedAt":"…"), then its images and
+// pages: the first kilobyte gives the project and the time without reading the whole file.
+function captureHead(file) {
+	let fd;
+	try {
+		fd = fs.openSync(file, 'r');
+		const buf = Buffer.alloc(1024);
+		const head = buf.toString('utf8', 0, fs.readSync(fd, buf, 0, buf.length, 0));
+		const cut = head.search(/,\s*"(images|captures)"\s*:/);
+		const h = cut > 0 ? JSON.parse(head.slice(0, cut) + '}') : {};
+		return {project: typeof h.project === 'string' ? h.project : undefined, capturedAt: typeof h.capturedAt === 'string' ? h.capturedAt : undefined};
+	} catch (e) {
+		return {};
+	} finally {
+		if (fd !== undefined) fs.closeSync(fd);
+	}
 }
 
 // ---- jobs: crawl and capture run in the background; the panel follows them over SSE ---------------
@@ -103,9 +121,11 @@ function listCaptures() {
 const jobs = new Map();
 let running = null; // one browser job at a time
 
+// work(emit, signal): POST /api/jobs/:id/cancel aborts the signal; the work then stops, saves nothing and
+// throws. The job ends as "cancelled", and the next one can start only after the work has closed its browser.
 function startJob(kind, title, work) {
 	if (running) throw Object.assign(new Error('Busy: ' + running.title + ' is still running.'), {status: 409});
-	const job = {id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), kind, title, status: 'running', events: [], listeners: new Set(), started: new Date().toISOString()};
+	const job = {id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), kind, title, status: 'running', events: [], listeners: new Set(), started: new Date().toISOString(), abort: new AbortController()};
 	const emit = (type, data) => {
 		const ev = Object.assign({type, t: Date.now()}, data);
 		job.events.push(ev);
@@ -115,12 +135,16 @@ function startJob(kind, title, work) {
 	jobs.set(job.id, job);
 	running = job;
 	Promise.resolve()
-		.then(() => work(emit))
+		.then(() => work(emit, job.abort.signal))
 		.then(result => {
 			job.status = 'done';
 			emit('done', {result});
 		})
 		.catch(e => {
+			if (job.abort.signal.aborted) {
+				job.status = 'cancelled';
+				return emit('cancelled', {});
+			}
 			job.status = 'failed';
 			emit('error', {message: String(e && e.message || e)});
 		})
@@ -491,9 +515,10 @@ async function api(req, res, url) {
 	if (parts[0] === 'crawl' && m === 'POST') {
 		const body = await readBody(req);
 		const settings = settingsFor(body.project);
-		const job = startJob('crawl', 'Find pages for ' + body.project, async emit => {
-			const r = await crawl(settings, {depth: body.depth, max: body.max, log: text => emit('log', {text})});
+		const job = startJob('crawl', 'Find pages for ' + body.project, async (emit, signal) => {
+			const r = await crawl(settings, {depth: body.depth, max: body.max, signal, log: text => emit('log', {text})});
 			let added = null;
+			if (signal.aborted) throw new Error('Cancelled');
 			if (body.save) {
 				const file = projectFile(body.project);
 				const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -511,15 +536,37 @@ async function api(req, res, url) {
 	if (parts[0] === 'capture' && m === 'POST') {
 		const body = await readBody(req);
 		const settings = settingsFor(body.project);
-		const job = startJob('capture', 'Capture of ' + body.project, async emit => {
+		const job = startJob('capture', 'Capture of ' + body.project, async (emit, signal) => {
 			const r = await capture(settings, {
-				screens: body.screens, orientation: body.orientation, pages: body.pages,
+				screens: body.screens, orientation: body.orientation, pages: body.pages, signal,
 				log: text => emit('log', {text}),
 				onProgress: p => emit('progress', p),
 			});
 			return {file: r.file && path.basename(r.file), captures: r.data.captures.length, failures: r.failures, size: r.file ? fs.statSync(r.file).size : 0};
 		});
 		return send(res, 202, {job: job.id});
+	}
+
+	// Cancel: the job stops as soon as its browser is closed and saves nothing (no capture file, no pages added)
+	if (parts[0] === 'jobs' && parts[2] === 'cancel' && m === 'POST') {
+		const job = jobs.get(parts[1]);
+		if (!job) return fail(res, 404, 'No such job');
+		if (job.status === 'running' && !job.abort.signal.aborted) job.abort.abort();
+		return send(res, 200, {status: job.status});
+	}
+
+	// open a page of the project in the user's browser: an address site directly, a folder through a static
+	// server (one per folder, kept while the panel runs); the panel links here with target=_blank
+	if (parts[0] === 'open' && m === 'GET') {
+		const source = settingsFor(url.searchParams.get('project') || '').source || {};
+		let origin;
+		if (source.folder) origin = await previewOrigin(source.folder);
+		else if (source.url) origin = new URL(source.url).origin;
+		else return fail(res, 400, 'The project has no folder or address.');
+		const target = new URL(url.searchParams.get('path') || '/', origin + '/');
+		if (target.origin !== origin) return fail(res, 400, 'That address is not on this site.');
+		res.writeHead(302, {Location: target.href, 'Cache-Control': 'no-store'});
+		return res.end();
 	}
 
 	// /api/jobs/:id/events (and /api/capture/:id/events, as in the plan)
@@ -540,12 +587,18 @@ async function api(req, res, url) {
 		return fs.createReadStream(path.join(CAPTURES, file)).pipe(res);
 	}
 
-	// remove one capture (/api/captures/:file) or all of them (/api/captures): moved to the recycle bin / Trash.
+	// remove one capture (/api/captures/:file), some (/api/captures with {files: [...]}) or all of them
+	// (/api/captures, no body): moved to the recycle bin / Trash.
 	// Panel only: the OPTIONS preflight allows GET alone, so no other page can send this.
 	if (parts[0] === 'captures' && m === 'DELETE') {
+		const body = await readBody(req);
 		if (running) return fail(res, 409, 'Busy: ' + running.title + ' is still running.');
 		let files;
-		if (parts.length === 1) {
+		if (parts.length === 1 && Array.isArray(body.files)) {
+			const have = new Set(listCaptures().map(c => c.file));
+			files = body.files.map(String).filter(f => path.basename(f) === f && have.has(f));
+			if (!files.length) return fail(res, 404, 'No such capture');
+		} else if (parts.length === 1) {
 			files = listCaptures().map(c => c.file);
 		} else {
 			const file = path.basename(parts[1]);
@@ -591,6 +644,19 @@ const server = http.createServer(async (req, res) => {
 		fail(res, e.status || 500, String(e && e.message || e));
 	}
 });
+
+// "Open" for folder projects: one static server per folder, started on first use and kept while the panel runs
+const previews = new Map(); // absolute folder -> Promise<{origin, close}>
+function previewOrigin(folder) {
+	const key = path.resolve(folder);
+	if (!fs.existsSync(key)) return Promise.reject(Object.assign(new Error('The folder ' + folder + ' does not exist.'), {status: 404}));
+	if (!previews.has(key)) {
+		const p = staticServer.start(key);
+		p.catch(() => previews.delete(key));
+		previews.set(key, p);
+	}
+	return previews.get(key).then(s => s.origin);
+}
 
 // selects the file in Explorer / Finder (Linux: opens its folder)
 function reveal(file) {

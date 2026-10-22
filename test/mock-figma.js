@@ -235,10 +235,10 @@ async function load(env, files) {
 	return m;
 }
 
-// sel: {screens, variants?, groups?}; default = everything in the file
-async function importAll(env, loaded, sel, layout = 'pages') {
+// sel: {screens, variants?, groups?}; default = everything in the file. sections: "screen" | "group" | "group-screen"
+async function importAll(env, loaded, sel, layout = 'pages', sections) {
 	const all = {screens: loaded.screens.map(o => o.id), variants: loaded.variants.map(o => o.id), groups: loaded.groups.map(o => o.id)};
-	const out = await env.send(Object.assign({type: 'import', layout}, sel || all));
+	const out = await env.send(Object.assign({type: 'import', layout, sections}, sel || all));
 	const done = out.find(x => x.type === 'done');
 	assert(done, 'no done message');
 	assert(!/^Error/.test(done.text), done.text);
@@ -448,7 +448,7 @@ function synthetic() {
 	await test('layout "single" (default) → one Figma Section per screen/variant on the current page', async () => {
 		const env = makeFigma();
 		await new Promise(r => setImmediate(r));
-		assert.deepStrictEqual(env.messages.find(m => m.type === 'settings'), {type: 'settings', layout: 'single', autoLayout: false}, 'default layout sent to the UI');
+		assert.deepStrictEqual(env.messages.find(m => m.type === 'settings'), {type: 'settings', layout: 'single', autoLayout: false, sections: 'screen'}, 'default layout sent to the UI');
 		const loaded = await load(env, [synthetic()]);
 		const text = await importAll(env, loaded, null, null); // no layout in the message -> default
 		assert.deepStrictEqual(pageNames(env), ['Page 1'], 'no pages created');
@@ -483,7 +483,75 @@ function synthetic() {
 	await test('remembered layout "pages" is sent to the UI on start', async () => {
 		const env = makeFigma({storage: {layout: 'pages'}});
 		await new Promise(r => setImmediate(r));
-		assert.deepStrictEqual(env.messages.find(m => m.type === 'settings'), {type: 'settings', layout: 'pages', autoLayout: false});
+		assert.deepStrictEqual(env.messages.find(m => m.type === 'settings'), {type: 'settings', layout: 'pages', autoLayout: false, sections: 'screen'});
+	});
+
+	// D19: sections per group, or per group and screen
+	const texts = n => n.children.filter(c => c.type === 'TEXT').map(t => t.characters);
+
+	await test('sections "group" → a Section per group (+ variant), a labelled row per screen inside', async () => {
+		const env = makeFigma();
+		const text = await importAll(env, await load(env, [synthetic()]), null, 'single', 'group');
+		const page = env.figma.root.children[0];
+		const sections = page.children.filter(c => c.type === 'SECTION');
+		assert.strictEqual(page.children.length, sections.length, 'only sections on the page');
+		assert.deepStrictEqual(sections.map(s => s.name).sort(), ['Customer — Armenian', 'Customer — English', 'Public — Armenian', 'Public — English']);
+		for (const s of sections) {
+			const [group, v] = s.name.split(' — ');
+			const frames = framesOf(s);
+			assert.deepStrictEqual(frames.map(f => f.name), [(group === 'Public' ? 'Home' : 'Dashboard') + ' — ' + v, (group === 'Public' ? 'Home' : 'Dashboard') + ' — ' + v]);
+			assert.deepStrictEqual(texts(s), ['Desktop', 'Phone portrait'], 'a screen label above each row');
+			assert(frames[1].y >= frames[0].y + frames[0].height + 400, 'the phone row below the desktop row');
+			assert.strictEqual(frames[0].width, 1440);
+			for (const c of s.children) assert(c.x >= 0 && c.y >= 0 && c.x + c.width <= s.width && c.y + c.height <= s.height, s.name + ': ' + (c.name || c.characters) + ' sticks out of its section');
+		}
+		assert(/• Public — English: 2 frame\(s\)/.test(text), text);
+		assert.strictEqual(env.storage.sections, 'group', 'choice remembered');
+	});
+
+	await test('sections "group-screen" → a Section per group and screen, one row without a label', async () => {
+		const env = makeFigma();
+		await importAll(env, await load(env, [synthetic()]), null, 'single', 'group-screen');
+		const page = env.figma.root.children[0];
+		const sections = page.children.filter(c => c.type === 'SECTION');
+		assert.strictEqual(sections.length, 8);
+		assert(sections.some(s => s.name === 'Public — Desktop — English') && sections.some(s => s.name === 'Customer — Phone portrait — Armenian'), sections.map(s => s.name).join(', '));
+		for (const s of sections) {
+			assert.strictEqual(framesOf(s).length, 1);
+			assert.deepStrictEqual(texts(s), [], 'the section name says it all');
+			assert.strictEqual(framesOf(s)[0].y, 120, 'the frame starts at the section padding');
+		}
+		assert(sections.every((s, i) => i === 0 || s.y >= sections[i - 1].y + sections[i - 1].height + 400), 'sections stacked with a 400 px gap');
+	});
+
+	await test('layout "pages" with sections "group" → a Section per group on each screen page ("group-screen" the same)', async () => {
+		for (const sections of ['group', 'group-screen']) {
+			const env = makeFigma();
+			const text = await importAll(env, await load(env, [synthetic()]), null, 'pages', sections);
+			assert.deepStrictEqual(pageNames(env), ['Desktop — English', 'Desktop — Armenian', 'Phone portrait — English', 'Phone portrait — Armenian']);
+			for (const page of env.figma.root.children) {
+				assert.deepStrictEqual(page.children.map(c => c.type + ' ' + c.name), ['SECTION Public', 'SECTION Customer'], sections);
+				for (const s of page.children) assert.strictEqual(framesOf(s).length, 1);
+			}
+			assert(/• Desktop — English · Public: 1 frame\(s\)/.test(text), text);
+		}
+	});
+
+	await test('import progress: one message per frame with a real pause after each, so Figma can show it', async () => {
+		const env = makeFigma();
+		const loaded = await load(env, [synthetic()]);
+		const realTimeout = global.setTimeout;
+		let pauses = 0;
+		global.setTimeout = (f, ms) => { pauses++; return realTimeout(f, ms); };
+		try {
+			const out = await env.send({type: 'import', layout: 'single', screens: loaded.screens.map(o => o.id)});
+			const frames = out.filter(m => m.type === 'progress' && m.done > 0);
+			assert.deepStrictEqual(frames.map(m => m.done + '/' + m.total), ['1/8', '2/8', '3/8', '4/8', '5/8', '6/8', '7/8', '8/8']);
+			assert(out[out.length - 1].type === 'done', 'done comes last');
+			assert(pauses >= out.filter(m => m.type === 'progress').length, 'a pause after every progress message (' + pauses + ')');
+		} finally {
+			global.setTimeout = realTimeout;
+		}
 	});
 
 	await test('choices: screens, variants and groups with exact counts; selection filters the import', async () => {

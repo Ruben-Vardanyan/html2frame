@@ -59,6 +59,8 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.5 Inte
 button, input, select, textarea { font: inherit; color: inherit; }
 code { font: 12px ui-monospace, Consolas, monospace; background: var(--bg-2); padding: 1px 5px; border-radius: 4px; }
 [hidden] { display: none !important; }
+/* while Find pages or Capture runs, the parts that edit the project (data-lock) are inert and dimmed */
+[data-lock][inert] { opacity: .55; }
 
 a { color: var(--brand); text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -161,7 +163,7 @@ table.kv .c-more { width: 32px; padding-right: 0; }
 .row-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
 .card-head .row-actions { margin-top: 0; }
 .advanced { margin-top: 12px; }
-.advanced summary, .log-box summary { cursor: pointer; color: var(--text-2); font-size: 12px; font-weight: 500; }
+.advanced summary, .log-box summary { width: fit-content; cursor: pointer; color: var(--text-2); font-size: 12px; font-weight: 500; } /* only the word opens it */
 .advanced .grid2 { margin-top: 10px; }
 .pill { min-width: 22px; padding: 1px 8px; border-radius: 10px; background: var(--bg-2); color: var(--text-2); font-size: 11px; font-weight: 600; text-align: center; }
 
@@ -202,6 +204,10 @@ table.pages { width: 100%; min-width: 760px; border-collapse: collapse; }
 .pages td { padding: 4px 6px; border-top: 1px solid var(--line); vertical-align: middle; }
 .pages td input:not([type=checkbox]), .pages td select { height: 28px; border-color: transparent; background: transparent; padding: 0 6px; }
 .pages td input:not([type=checkbox]):hover, .pages td select:hover { border-color: var(--line); }
+/* a text box with suggestions (Group): Chromium's ▼ marker drawn as a chevron like the selects' */
+input[list]::-webkit-calendar-picker-indicator { width: 12px; height: 12px; margin: 0 1px 0 4px; padding: 0; opacity: 1; cursor: pointer; color: transparent; background: var(--text);
+	-webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5l3 3 3-3'/%3E%3C/svg%3E") center / 12px 12px no-repeat;
+	mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5l3 3 3-3'/%3E%3C/svg%3E") center / 12px 12px no-repeat; }
 .pages tr.off td:not(.c-check) { opacity: .45; }
 .c-check { width: 32px; text-align: center; }
 .c-more { width: 200px; text-align: right; white-space: nowrap; }
@@ -213,8 +219,23 @@ table.pages { width: 100%; min-width: 760px; border-collapse: collapse; }
 .page-screens .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); font-size: 12px; cursor: pointer; }
 .page-screens .chip:has(input:checked) { border-color: var(--brand); color: var(--brand); }
 .empty-pages { padding: 16px 4px 6px; }
+.pages tr.filtered { display: none; }
+.pages .addr { display: flex; align-items: center; gap: 2px; }
+.pages .open-page { flex: none; color: var(--text-3); }
+.pages .open-page:hover { color: var(--brand); text-decoration: none; }
+.sim-hit { padding: 0 6px 4px; overflow-wrap: anywhere; }
+.sim-hit mark, .tag mark { background: var(--brand-soft); color: inherit; border-radius: 3px; }
+/* page search and "Set group" above the table */
+.page-tools { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.search { position: relative; display: flex; align-items: center; flex: 0 1 340px; min-width: 200px; }
+.search svg { position: absolute; left: 10px; color: var(--text-3); pointer-events: none; }
+.search input[type=search] { padding-left: 30px; }
+.group-tool { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.group-form { display: inline-flex; align-items: center; gap: 6px; }
+.group-form input[list] { width: 200px; height: 28px; }
 .job { margin-bottom: 12px; border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; background: var(--bg-2); }
 .job-line { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+.job-line .btn { margin-left: auto; }
 .log { margin: 8px 0 0; max-height: 180px; overflow: auto; font: 11px/1.5 ui-monospace, Consolas, monospace; color: var(--text-2); white-space: pre-wrap; }
 .spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--brand-soft); border-top-color: var(--brand); animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -235,6 +256,15 @@ table.pages { width: 100%; min-width: 760px; border-collapse: collapse; }
 .captures li > span:last-child { display: flex; align-items: center; gap: 6px; }
 .captures .icon-btn { width: 22px; height: 22px; }
 .captures-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.captures-head .row-actions { margin-top: 0; }
+.cap-file { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* all captures (dialog) */
+dialog.wide { width: min(860px, 94vw); }
+.capture-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.capture-filters .search { flex: 1 1 260px; }
+.capture-filters select { width: auto; min-width: 150px; }
+.captures.all { max-height: 56vh; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius); padding: 0 10px; }
+.capture-foot { margin-top: 10px; }
 
 /* Help page */
 a.plain { color: inherit; text-decoration: none; }
