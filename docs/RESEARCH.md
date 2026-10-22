@@ -83,6 +83,14 @@ pages drawn by JavaScript.
   `overflow: hidden` boxes. The extractor finds the real font by comparing canvas text widths.
 - **Icon fonts** (Font Awesome Solid) are rarely installed where Figma runs, and a Private Use Area glyph in
   Inter is blank. The extractor draws icon glyphs to a canvas (the page's font is loaded there) and sends a PNG.
+  Current Font Awesome writes `content: "\f0fe" / ""` (glyph, then alt text). Reading that as one quoted string
+  left `<glyph>" / "` in the page: Figma showed `" / "` after every icon, and the extra characters (fallback
+  font, inside an inline-block `<i>`) changed the layout: a card's time row grew from 20 to 29 px, pushing its
+  buttons out of the card, and a lone filter icon wrapped onto a second line (32 → 64 px).
+  Only the strings before the top-level `/` count.
+- **Pseudo-elements on inputs.** A custom checkbox (`appearance: none`) draws its ✓ with `:checked::after`, a
+  toggle its knob. The span the extractor makes was put inside the `<input>`, which never shows children, so
+  every tick, radio dot and knob was lost. It now goes after the input, absolutely placed.
 - **Wrappers without a size.** A burger menu's `position: fixed; z-index: 6; height: 0` wrapper makes no frame,
   so its z-index was lost and the open drawer went under the page. Its layer now passes to the nodes inside.
 - **Collapsed panels.** A phone filter panel closed with `max-height: 0; overflow: hidden` has no height, so it
@@ -116,6 +124,13 @@ pages drawn by JavaScript.
   true circle, so circles and ellipses are measured exactly and written as arcs.
 - **Gradient text** (`background-clip: text; color: transparent`) came out as black text on a gradient box. The
   background is now the text's fill, laid out on the element's box.
+- **"Invalid string length".** V8 strings stop at about 512 MB. A 34-page site at Desktop alone was a 302 MB
+  capture (the same 27 MB of photos on every page); adding Phone made `JSON.stringify` fail. Images are now kept
+  once per file and the file is written piece by piece: both screens came to 29 MB.
+- **"load" waits for other sites' files.** One page of 68 failed with `page.goto: Timeout 15000ms exceeded`:
+  the browser's `load` event waits for every file, including a Font Awesome kit and Google Fonts from the
+  internet, and one of them was slow. Pages now open at `domcontentloaded`, then wait up to 15 s for `load`;
+  past that they are captured as they are, with a warning (also in the crawler and the panel's login helpers).
 - **Viewport emulation in automation panes** may reset between turns. Re-apply it before each capture and
   check `innerWidth`.
 
@@ -137,6 +152,16 @@ pages drawn by JavaScript.
 - `createNodeFromSvg` returns a Frame. Resize it to the measured box, clear its fills, and turn off
   clipping.
 - `figma.createFrame()` clips content by default. Set `clipsContent` from CSS `overflow`.
+- **Image paints.** `FILL` is CSS `object-fit: cover` centred, `FIT` is `contain` centred; nothing else matches
+  CSS directly. For `fill` (stretch), `none`, `scale-down` and `object-position`, the plugin sizes a rectangle to
+  the image's own area and uses `CROP` with the identity `imageTransform`, which shows the whole image stretched
+  over the rectangle (to confirm in Figma), inside a clipping frame of the `<img>` box.
+- **Shadows of frames without a fill** are cast from their children. A card with `box-shadow` and no background
+  (a picture with square bottom corners over a white panel rounded on all four) got shadow lines inside it,
+  around the panel's top corners. An invisible fill (opacity 0) on the frame did not help: Figma still traced
+  the children. CSS casts a box-shadow from the box and paints it outside the box only, so the plugin puts it
+  on a rectangle of the box, under a mask that is everything around the box (an even-odd ring). `filter:
+  drop-shadow()` does follow the content and stays on the frame.
 - **Coordinates.** Capture uses absolute page coordinates; the plugin subtracts the parent's position.
 - **Pages per file.** The free plan may limit how many pages a file can have (not yet checked in Figma).
   Plugin v1 reuses the empty "Page 1" of a new file, and if `createPage()` fails it puts that screen on an

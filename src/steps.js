@@ -9,15 +9,38 @@ function resolveUrl(p, {origin, query}) {
 	return url.href;
 }
 
+// "load" waits for every file of the page, other sites' too (an icon kit, web fonts): one that hangs must not
+// fail the page. Past the timeout (the context's default, or ms) it goes on with what has arrived; true when
+// the page did load. wasSlow(page): the last wait gave up, so the capture can say so without waiting again.
+const SLOW = new WeakSet();
+async function loaded(page, ms) {
+	try {
+		await page.waitForLoadState('load', ms ? {timeout: ms} : {});
+		SLOW.delete(page);
+		return true;
+	} catch (e) {
+		if (page.isClosed()) throw e;
+		SLOW.add(page);
+		return false;
+	}
+}
+const wasSlow = page => SLOW.has(page);
+
+// open a URL: fails only when the page itself does not come (its HTML), not when one of its files hangs
+async function open(page, href) {
+	await page.goto(href, {waitUntil: 'domcontentloaded'});
+	return loaded(page);
+}
+
 async function gotoPath(page, p, ctx) {
-	await page.goto(resolveUrl(p, ctx), {waitUntil: 'load'});
+	await open(page, resolveUrl(p, ctx));
 }
 
 // Click, and if that started a main-frame navigation, wait for the new page to load.
 async function clickAndWait(page, sel) {
 	const nav = page.waitForEvent('framenavigated', {predicate: f => f === page.mainFrame(), timeout: 1500}).then(() => true, () => false);
 	await page.click(sel);
-	if (await nav) await page.waitForLoadState('load');
+	if (await nav) await loaded(page);
 }
 
 async function selectOption(page, sel, value) {
@@ -41,7 +64,10 @@ const ACTIONS = {
 	waitForUrl: (page, s) => page.waitForURL(u => u.href.includes(s.waitForUrl)),
 	// indirect eval runs in global scope; a returned promise is awaited by evaluate
 	eval: (page, s) => page.evaluate(js => (0, eval)(js), s.eval),
-	reload: page => page.reload({waitUntil: 'load'}),
+	reload: async page => {
+		await page.reload({waitUntil: 'domcontentloaded'});
+		await loaded(page);
+	},
 };
 
 function stepKind(step) {
@@ -61,4 +87,4 @@ async function runSteps(page, steps, ctx) {
 	}
 }
 
-module.exports = {resolveUrl, gotoPath, runSteps, stepKind};
+module.exports = {resolveUrl, open, gotoPath, runSteps, stepKind, loaded, wasSlow};

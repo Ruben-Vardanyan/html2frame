@@ -8,6 +8,8 @@
 	// elements with no layers to read: capture.js takes a picture of each (`shot`) and imports it as an image
 	const SHOT_TAGS = /^(canvas|video|iframe|object|embed)$/;
 	let SHOTS = 0;
+	const COVERS = []; // fixed frames over the whole window, stretched to the page's height
+
 	const INLINE = /^(inline|contents)$/;
 	let OPTS = {replaceText: {}};
 
@@ -292,7 +294,8 @@
 		if (BLEND.test(cs.mixBlendMode)) props.blend = cs.mixBlendMode;
 		for (const m of filter.matchAll(/drop-shadow\(((?:[^()]|\([^()]*\))*)\)/g)) {
 			const [d] = shadows(m[1]);
-			if (d) drop.push(Object.assign(d, {spread: 0}));
+			// f: follows the content's shape, not the box's (the plugin treats the two differently)
+			if (d) drop.push(Object.assign(d, {spread: 0, f: 1}));
 		}
 		return {props, drop};
 	}
@@ -1018,20 +1021,80 @@
 		out.push(own(el, {t: 'img', n: '3d ' + tag + (cls ? '.' + cls : ''), iso: id, fit: 'fill', x, y, w, h, abs: true}));
 	}
 
+	// computed `content` -> its text: the quoted strings joined, up to a top-level "/" that starts the alt text
+	// (icon fonts: content: "\f0fe" / ""). With attr(), counter() or url() in it, nothing: half a text ("1. " without
+	// the 1) would be worse.
+	function pseudoText(v) {
+		let s = '';
+		for (let i = 0; i < v.length; i++) {
+			const q = v[i];
+			if (q === '/') break;
+			if (/\s/.test(q)) continue;
+			if (q !== '"' && q !== "'") return '';
+			for (i++; i < v.length && v[i] !== q; i++) {
+				if (v[i] !== '\\') { s += v[i]; continue; }
+				const hx = v.slice(i + 1).match(/^[0-9a-f]{1,6}\s?/i);
+				if (hx) { s += String.fromCodePoint(parseInt(hx[0], 16)); i += hx[0].length; } else s += v[++i] || '';
+			}
+		}
+		return s;
+	}
+
+	// Chrome draws ::before / ::after on an <input> only for a checkbox or radio styled with appearance: none
+	// (a custom checkbox's ✓ from :checked::after). The input cannot hold the span, so it goes right after it,
+	// absolutely placed where the browser draws the pseudo-element: out of the flow, nothing else moves.
+	function drawsPseudo(el) {
+		if (el.tagName !== 'INPUT') return true;
+		const cs = getComputedStyle(el);
+		return /^(checkbox|radio)$/.test(el.type) && (cs.appearance === 'none' || cs.webkitAppearance === 'none');
+	}
+
+	function placeBeside(el, span, pcs, last) {
+		last.after(span);
+		const ecs = getComputedStyle(el), r = el.getBoundingClientRect();
+		span.style.setProperty('position', 'absolute');
+		for (const k of ['top', 'right', 'bottom', 'left']) span.style.setProperty(k, 'auto');
+		// the span's containing block: its nearest positioned ancestor's padding box, or the page
+		const op = span.offsetParent;
+		let ox = -scrollX, oy = -scrollY;
+		if (op && (op !== document.body || getComputedStyle(op).position !== 'static')) {
+			const q = op.getBoundingClientRect();
+			ox = q.left + op.clientLeft - op.scrollLeft;
+			oy = q.top + op.clientTop - op.scrollTop;
+		}
+		// where the pseudo-element is: from the input's padding box by its top/left (or right/bottom); in the
+		// flow (not positioned), at the start of the input's content box
+		const abs = /^(absolute|fixed)$/.test(pcs.position);
+		const sb = span.getBoundingClientRect();
+		let x = r.left + px(ecs.borderLeftWidth) - ox, y = r.top + px(ecs.borderTopWidth) - oy;
+		if (abs && pcs.left !== 'auto') x += px(pcs.left);
+		else if (abs && pcs.right !== 'auto') x += el.clientWidth - sb.width - px(pcs.right);
+		else x += px(ecs.paddingLeft);
+		if (abs && pcs.top !== 'auto') y += px(pcs.top);
+		else if (abs && pcs.bottom !== 'auto') y += el.clientHeight - sb.height - px(pcs.bottom);
+		else y += px(ecs.paddingTop);
+		span.style.setProperty('left', x + 'px');
+		span.style.setProperty('top', y + 'px');
+	}
+
 	function materialisePseudo(root) {
 		const st = document.createElement('style');
 		st.textContent = '.__h2f-b::before{content:none!important}.__h2f-a::after{content:none!important}.__h2f-m{list-style-type:none!important}';
 		document.head.appendChild(st);
 		for (const el of [...root.querySelectorAll('*')]) {
-			if (el.closest('svg') || in3d(el)) continue;
+			if (el.closest('svg') || in3d(el) || !drawsPseudo(el)) continue;
+			let last = el; // an input's spans go after it, ::before first
 			for (const which of ['before', 'after']) {
 				const cs = getComputedStyle(el, '::' + which);
 				if (!cs.content || cs.content === 'none' || cs.content === 'normal') continue;
 				const span = document.createElement('span');
 				for (let i = 0; i < cs.length; i++) span.style.setProperty(cs[i], cs.getPropertyValue(cs[i]));
-				const m = cs.content.match(/^"(.*)"$/s);
-				span.textContent = m ? m[1].replace(/\\([0-9a-f]{1,6})\s?/gi, (_, hx) => String.fromCodePoint(parseInt(hx, 16))) : '';
-				if (which === 'before') el.insertBefore(span, el.firstChild); else el.appendChild(span);
+				span.textContent = pseudoText(cs.content);
+				if (el.tagName === 'INPUT') {
+					placeBeside(el, span, cs, last);
+					last = span;
+				} else if (which === 'before') el.insertBefore(span, el.firstChild);
+				else el.appendChild(span);
 				el.classList.add('__h2f-' + which[0]);
 			}
 		}
@@ -1314,6 +1377,8 @@
 		if (mine && tf && !scene) mine.tf = tf;
 		// out of the flow (position absolute / fixed): stays absolute inside an Auto Layout parent
 		if (mine && /^(absolute|fixed)$/.test(cs.position)) mine.abs = true;
+		if (mine && cs.position === 'fixed' && mine.t === 'f' && mine.x <= 0.5 && mine.y <= 0.5
+			&& mine.w >= document.documentElement.clientWidth - 1 && mine.h >= innerHeight - 1) COVERS.push(mine);
 		if (mine) {
 			// without a stacking context of its own, the element's positioned descendants paint in the parent's
 			// context: they are its raised parts, which count where they overlap a sibling (a plain <header> holding
@@ -1406,7 +1471,11 @@
 		}
 		if (tag === 'img') {
 			const src = el.currentSrc || el.src;
-			if (b.w > 0 && b.h > 0 && src) out.push(own(el, Object.assign({t: 'img', n: el.alt || 'image', src, fit: cs.objectFit, r: radius(cs, b.w, b.h)}, b, effectsOf(cs).props)));
+			// pos: object-position when not centred (computed: "0% 100%", "10px 50%"…)
+			const pos = cs.objectPosition && cs.objectPosition !== '50% 50%' ? {pos: cs.objectPosition} : {};
+			// nw, nh: the natural size CSS sizes it from (object-fit none / scale-down, the ratio for the others)
+			const nat = el.naturalWidth > 0 && el.naturalHeight > 0 ? {nw: el.naturalWidth, nh: el.naturalHeight} : {};
+			if (b.w > 0 && b.h > 0 && src) out.push(own(el, Object.assign({t: 'img', n: el.alt || 'image', src, fit: cs.objectFit, r: radius(cs, b.w, b.h)}, pos, nat, b, effectsOf(cs).props)));
 			return;
 		}
 		if (SHOT_TAGS.test(tag)) {
@@ -1517,8 +1586,16 @@
 		const root = {t: 'f', n: 'page', x: 0, y: 0, w: W, h: H, bg: bodyBg, br: {tl: 0, tr: 0, br: 0, bl: 0}, bd: null, sh: [], op: 1, clip: true, ch: []};
 		const rootCs = getComputedStyle(document.body);
 		if (rootCs.backgroundImage && rootCs.backgroundImage !== 'none') await backgrounds(document.body, rootCs, root, root);
+		COVERS.length = 0;
 		for (const child of document.body.childNodes) {
 			if (child.nodeType === Node.ELEMENT_NODE) await walk(child, root.ch);
+		}
+		// a fixed layer over the whole window (a modal's dim backdrop) covers it wherever you scroll: on the
+		// full-page frame, down to the bottom. What is inside stays where the window showed it (no Auto Layout,
+		// which would centre a modal in the taller box).
+		for (const n of COVERS) {
+			n.h = Math.max(n.h, H - n.y);
+			delete n.lay;
 		}
 		paintOrder(root.ch, null);
 		return {width: W, height: H, title: document.title, root};

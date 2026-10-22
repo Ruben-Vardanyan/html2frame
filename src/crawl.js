@@ -10,6 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const {resolveScreens} = require('./screens');
 const staticServer = require('./static-server');
+const {open} = require('./steps');
 const {loadSettings, settingsFromFolder, variantsOf, launchBrowser, newContext, settle, listHtml, titleName, fileName} = require('./capture');
 
 const SKIP_EXT = /\.(pdf|zip|rar|7z|gz|tar|png|jpe?g|gif|webp|avif|svg|ico|bmp|mp4|webm|mov|mp3|wav|ogg|woff2?|ttf|otf|eot|css|js|mjs|map|json|xml|txt|csv|xlsx?|docx?|pptx?|exe|dmg|apk)$/i;
@@ -81,7 +82,7 @@ async function crawlContext(context, site, settings, seeds, opts, log) {
 			try {
 				const url = new URL(item.path, site.origin + '/');
 				for (const [k, v] of Object.entries(site.query || {})) url.searchParams.set(k, v);
-				await page.goto(url.href, {waitUntil: 'load'});
+				await open(page, url.href);
 				await settle(page, Object.assign({}, settings, {settleMs: Math.min(settings.settleMs ?? 300, 300)}), ready, w => { if (!warned.has(w)) { warned.add(w); log('  ' + w); } });
 				info = await readPage(page);
 			} catch (e) {

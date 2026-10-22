@@ -44,11 +44,18 @@
 				<div class="img-cell"><div class="frame"><img class="fit-cover" src="img/wide.jpg" alt="cover"></div>cover</div>
 				<div class="img-cell"><div class="frame"><img class="fit-contain" src="img/wide.jpg" alt="contain"></div>contain</div>
 				<div class="img-cell"><div class="frame"><img class="fit-fill" src="img/wide.jpg" alt="fill"></div>fill (stretched)</div>
-				<div class="img-cell"><div class="frame"><img class="fit-none" src="img/hero.jpg" alt="none"></div>none (cropped, shown as fill)</div>
+				<div class="img-cell"><div class="frame"><img class="fit-none" src="img/hero.jpg" alt="none"></div>none (natural size, centred, cropped)</div>
+				<div class="img-cell"><div class="frame"><img class="fit-cover" src="img/wide.jpg" alt="cover right" style="object-position:right center"></div>cover, object-position right</div>
+				<div class="img-cell"><div class="frame"><img class="fit-none" src="img/hero.jpg" alt="none left top" style="object-position:0 0"></div>none, object-position 0 0</div>
+				<div class="img-cell"><div class="frame"><img src="img/product-1.png" alt="scale-down" style="object-fit:scale-down;object-position:20px 100%"></div>scale-down, 20px from the left, at the bottom</div>
+				<div class="img-cell"><img src="img/wide.jpg" alt="contain bottom round" style="height:180px;width:100%;object-fit:contain;object-position:50% 100%;border-radius:24px;background:var(--surface)"> contain at the bottom, radius 24px</div>
 				<div class="img-cell"><img class="img-round fit-cover" src="img/product-4.png" alt="radius 24" style="height:180px;width:100%"> radius 24px</div>
 				<div class="img-cell"><img class="img-circle" src="img/avatar.webp" alt="circle"> 50 % (circle)</div>
 				<div class="img-cell"><img class="img-corners" src="img/product-2.jpg" alt="corners" style="height:180px;width:100%"> per-corner radius</div>
 				<div class="img-cell"><img src="img/product-1.png" alt="shadowed" style="height:180px;width:100%;object-fit:cover;border-radius:12px;box-shadow:var(--shadow);border:4px solid var(--card)"> border + shadow (image only)</div>
+				<div class="img-cell"><div class="frame"><img class="fit-cover" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect width='400' height='300' fill='%23f3cfb1'/%3E%3Ccircle cx='30' cy='30' r='22' fill='%23c57a43'/%3E%3Ccircle cx='370' cy='270' r='22' fill='%23512211'/%3E%3Ctext x='200' y='160' font-family='Georgia,serif' font-size='28' fill='%23512211' text-anchor='middle'%3ENo photo%3C/text%3E%3C/svg%3E" alt="SVG cover"></div>SVG file, cover (fills the box, cropped)</div>
+				<div class="img-cell"><div class="frame"><img class="fit-contain" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect width='400' height='300' fill='%23f3cfb1'/%3E%3Ccircle cx='30' cy='30' r='22' fill='%23c57a43'/%3E%3Ccircle cx='370' cy='270' r='22' fill='%23512211'/%3E%3Ctext x='200' y='160' font-family='Georgia,serif' font-size='28' fill='%23512211' text-anchor='middle'%3ENo photo%3C/text%3E%3C/svg%3E" alt="SVG contain"></div>SVG file, contain</div>
+				<div class="img-cell"><img class="fit-cover" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect width='400' height='300' fill='%23f3cfb1'/%3E%3Ccircle cx='30' cy='30' r='22' fill='%23c57a43'/%3E%3Ccircle cx='370' cy='270' r='22' fill='%23512211'/%3E%3Ctext x='200' y='160' font-family='Georgia,serif' font-size='28' fill='%23512211' text-anchor='middle'%3ENo photo%3C/text%3E%3C/svg%3E" alt="SVG left top" style="height:180px;width:100%;object-position:left top;border-radius:16px"> SVG file, cover, left top, radius 16px</div>
 			</div>
 		</div>
 	</section>

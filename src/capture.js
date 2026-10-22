@@ -3,12 +3,13 @@
 // rendered, runs src/extract.js in it and writes a FORMAT v1 capture file (docs/FORMAT.md).
 // Also a CLI: node src/capture.js projects/x.json [--screens desktop,phone] [--orientation both] [--pages "Home,Log In"] [--out file]
 
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const {chromium} = require('playwright-core');
 const {resolveScreens} = require('./screens');
 const staticServer = require('./static-server');
-const {gotoPath, runSteps, stepKind} = require('./steps');
+const {gotoPath, runSteps, stepKind, loaded, wasSlow} = require('./steps');
 
 const ROOT = path.join(__dirname, '..');
 const EXTRACT_JS = path.join(__dirname, 'extract.js');
@@ -169,7 +170,10 @@ async function newContext(browser, screen, variant, account, site, info) {
 // another project) does not fail the page: it is captured anyway with a warning, and after two misses in a
 // row the run stops waiting for it, instead of losing 15 s on every page.
 async function settle(page, settings, ready, warn) {
-	await page.waitForLoadState('load');
+	// a load that already gave up (gotoPath) gets one more second, not another full wait
+	if (!(await loaded(page, wasSlow(page) ? 1000 : TIMEOUT))) {
+		(warn || (() => {}))('the page was still loading after ' + TIMEOUT / 1000 + ' s (a slow file, often from another site: an icon kit, web fonts); captured as it was');
+	}
 	await page.waitForLoadState('networkidle', {timeout: 5000}).catch(() => {});
 	if (settings.readyWhen && !(ready && ready.off)) {
 		// interval polling: requestAnimationFrame never fires in hidden tabs (RESEARCH §4)
@@ -258,8 +262,12 @@ async function fetchImage(src, context) {
 }
 
 // SVG text -> markup sized to the box (parsed by the browser, so any valid SVG file works)
-function sizeSvg(page, text, w, h) {
-	return page.evaluate(([text, w, h]) => {
+// An SVG file shown by an <img> in a w×h box, drawn as the browser draws it. object-fit (fit) and object-position
+// (pos) give the area the image takes (cover: bigger than the box, cropped; contain: inside it), then the SVG's own
+// preserveAspectRatio fits its viewBox into that area. The result is baked into one transform on a group, with
+// viewBox "0 0 w h": nothing depends on how Figma reads viewBox. What falls outside the box is cut by the plugin.
+function sizeSvg(page, text, w, h, fit, pos) {
+	return page.evaluate(([text, w, h, fit, pos]) => {
 		const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
 		const svg = doc.documentElement;
 		if (!svg || svg.nodeName.toLowerCase() !== 'svg' || doc.querySelector('parsererror')) return null;
@@ -267,14 +275,44 @@ function sizeSvg(page, text, w, h) {
 		const it = doc.createNodeIterator(svg, NodeFilter.SHOW_COMMENT);
 		for (let n = it.nextNode(); n; n = it.nextNode()) comments.push(n);
 		comments.forEach(n => n.remove());
-		if (!svg.getAttribute('viewBox')) {
-			const ow = parseFloat(svg.getAttribute('width')), oh = parseFloat(svg.getAttribute('height'));
-			if (ow > 0 && oh > 0) svg.setAttribute('viewBox', '0 0 ' + ow + ' ' + oh);
-		}
+		// intrinsic size: width/height in px (not %); the ratio also comes from the viewBox
+		const abs = v => (v && !/%/.test(v) && parseFloat(v) > 0 ? parseFloat(v) : 0);
+		let iw = abs(svg.getAttribute('width')), ih = abs(svg.getAttribute('height'));
+		let vb = (svg.getAttribute('viewBox') || '').trim().split(/[\s,]+/).map(Number);
+		if (vb.length !== 4 || !(vb[2] > 0 && vb[3] > 0)) vb = iw && ih ? [0, 0, iw, ih] : null;
 		svg.setAttribute('width', w);
 		svg.setAttribute('height', h);
+		if (!vb) return new XMLSerializer().serializeToString(svg); // no size, no ratio: the browser stretches it
+		const ratio = iw && ih ? iw / ih : vb[2] / vb[3];
+		if (!iw || !ih) [iw, ih] = ratio > w / h ? [w, w / ratio] : [h * ratio, h]; // no size: as contain
+		// 1. the area object-fit gives the image
+		let ow = w, oh = h;
+		const fitIn = big => (big ? ratio > w / h : ratio < w / h) ? [h * ratio, h] : [w, w / ratio];
+		if (fit === 'contain') [ow, oh] = fitIn(false);
+		else if (fit === 'cover') [ow, oh] = fitIn(true);
+		else if (fit === 'none') [ow, oh] = [iw, ih];
+		else if (fit === 'scale-down') [ow, oh] = iw <= w && ih <= h ? [iw, ih] : fitIn(false);
+		const [px, py] = (pos || '50% 50%').split(/\s+/);
+		const place = (v, room) => (/%$/.test(v) ? parseFloat(v) / 100 * room : parseFloat(v) || 0);
+		const ox = place(px || '50%', w - ow), oy = place(py || px || '50%', h - oh);
+		// 2. the viewBox into that area, by the SVG's own preserveAspectRatio (default xMidYMid meet)
+		const par = (svg.getAttribute('preserveAspectRatio') || 'xMidYMid meet').trim().split(/\s+/);
+		let sx = ow / vb[2], sy = oh / vb[3], tx = ox, ty = oy;
+		if (par[0] !== 'none') {
+			sx = sy = par[1] === 'slice' ? Math.max(sx, sy) : Math.min(sx, sy);
+			const al = (a, room) => (a === 'Min' ? 0 : a === 'Max' ? room : room / 2);
+			const m = par[0].match(/^x(Min|Mid|Max)Y(Min|Mid|Max)$/) || [null, 'Mid', 'Mid'];
+			tx += al(m[1], ow - vb[2] * sx);
+			ty += al(m[2], oh - vb[3] * sy);
+		}
+		const g = doc.createElementNS('http://www.w3.org/2000/svg', 'g');
+		g.setAttribute('transform', 'matrix(' + [sx, 0, 0, sy, tx - vb[0] * sx, ty - vb[1] * sy].map(v => Math.round(v * 1e4) / 1e4).join(' ') + ')');
+		while (svg.firstChild) g.appendChild(svg.firstChild);
+		svg.appendChild(g);
+		svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+		svg.removeAttribute('preserveAspectRatio');
 		return new XMLSerializer().serializeToString(svg);
-	}, [text, w, h]);
+	}, [text, w, h, fit, pos]);
 }
 
 // Any image the browser can decode -> PNG base64 (Figma's createImage only takes PNG, JPEG and GIF).
@@ -381,13 +419,15 @@ async function resolveImages(root, page, context, cache, warn) {
 		return cache.get(src);
 	};
 	const short = src => (src.startsWith('data:') ? src.slice(0, 40) + '…' : src);
+	// Playwright adds a call log on further lines
+	const firstLine = e => String(e && e.message || e).split('\n')[0];
 
 	async function imgNode(n) {
 		let img;
 		try {
 			img = await load(n.src);
 		} catch (e) {
-			warn('image not loaded, skipped: ' + short(n.src) + ' (' + e.message + ')');
+			warn('image not loaded, skipped: ' + short(n.src) + ' (' + firstLine(e) + ')');
 			return null;
 		}
 		// everything the extractor set (transform, abs, opacity, blend, blur…), without the source
@@ -395,7 +435,7 @@ async function resolveImages(root, page, context, cache, warn) {
 		delete base.src;
 		delete base.t;
 		if (img.type === 'image/svg+xml') {
-			const svg = await sizeSvg(page, img.buf.toString('utf8'), n.w, n.h);
+			const svg = await sizeSvg(page, img.buf.toString('utf8'), n.w, n.h, n.fit, n.pos);
 			if (svg) return Object.assign({t: 'svg'}, base, {svg});
 			warn('SVG not parsed, skipped: ' + short(n.src));
 			return null;
@@ -429,7 +469,7 @@ async function resolveImages(root, page, context, cache, warn) {
 			try {
 				out.push(await layer(l, box));
 			} catch (e) {
-				warn('background image not loaded, skipped: ' + short(l.src) + ' (' + e.message + ')');
+				warn('background image not loaded, skipped: ' + short(l.src) + ' (' + firstLine(e) + ')');
 			}
 		}
 		return out;
@@ -601,14 +641,56 @@ async function capture(settings, opts = {}) {
 		if (server) await server.close();
 	}
 
-	const data = {version: 1, project: settings.name || 'Project', capturedAt: now.toISOString(), captures};
+	const data = {version: 1, project: settings.name || 'Project', capturedAt: now.toISOString(), images: poolImages(captures), captures};
 	let file = null;
 	if (captures.length) {
 		file = opts.out ? path.resolve(opts.out) : outFile(data.project, now);
 		fs.mkdirSync(path.dirname(file), {recursive: true});
-		fs.writeFileSync(file, JSON.stringify(data)); // generated data: compact
+		writeCapture(file, data);
 	}
 	return {file, data, failures};
+}
+
+// Each image once per file (images: {id: base64}; nodes and image layers say img: id). The same photos on every
+// page made a 34-page site 302 MB for 27 MB of images, and with a second screen size too big for one string.
+function poolImages(captures) {
+	const images = {};
+	const id = data => {
+		const k = crypto.createHash('sha1').update(data).digest('hex').slice(0, 16);
+		images[k] = data;
+		return k;
+	};
+	(function walk(n) {
+		if (n.t === 'img' && typeof n.data === 'string') {
+			n.img = id(n.data);
+			delete n.data;
+		}
+		for (const l of n.layers || []) {
+			if (l.type === 'image' && typeof l.data === 'string') {
+				l.img = id(l.data);
+				delete l.data;
+			}
+		}
+		for (const c of n.ch || []) walk(c);
+	})({ch: captures.map(c => c.root)});
+	return images;
+}
+
+// compact JSON, written piece by piece: one JSON.stringify of a whole big site can pass V8's string limit
+function writeCapture(file, data) {
+	const fd = fs.openSync(file, 'w');
+	try {
+		const head = Object.assign({}, data);
+		delete head.images;
+		delete head.captures;
+		fs.writeSync(fd, JSON.stringify(head).slice(0, -1) + ',"images":{');
+		Object.keys(data.images).forEach((k, i) => fs.writeSync(fd, (i ? ',' : '') + JSON.stringify(k) + ':' + JSON.stringify(data.images[k])));
+		fs.writeSync(fd, '},"captures":[');
+		data.captures.forEach((c, i) => fs.writeSync(fd, (i ? ',' : '') + JSON.stringify(c)));
+		fs.writeSync(fd, ']}');
+	} finally {
+		fs.closeSync(fd);
+	}
 }
 
 // ---- CLI --------------------------------------------------------------------------------------------

@@ -14,6 +14,7 @@ const {capture, loadSettings, launchBrowser, newContext} = require('./src/captur
 const {crawl, mergePages} = require('./src/crawl');
 const {resolveScreens, PRESETS} = require('./src/screens');
 const staticServer = require('./src/static-server');
+const {open} = require('./src/steps');
 const {trashFiles} = require('./src/trash');
 
 const ROOT = __dirname;
@@ -166,7 +167,7 @@ async function detectLogin(settings, loginPage) {
 		browser = await launchBrowser(() => {});
 		const context = await browser.newContext({viewport: {width: 1440, height: 900}});
 		const page = await context.newPage();
-		await page.goto(new URL(loginPage || '/login.html', origin + '/').href, {waitUntil: 'load'});
+		await open(page, new URL(loginPage || '/login.html', origin + '/').href);
 		await page.waitForLoadState('networkidle', {timeout: 5000}).catch(() => {});
 		return await page.evaluate(() => {
 			const visible = e => e && e.offsetParent !== null && getComputedStyle(e).visibility !== 'hidden';
@@ -223,7 +224,7 @@ async function testLogin(settings, accountName) {
 			return {ok: false, error: e.message.split('\n')[0]};
 		}
 		const page = await context.newPage();
-		await page.goto(new URL(info.landing || '/', origin + '/').href, {waitUntil: 'load'});
+		await open(page, new URL(info.landing || '/', origin + '/').href);
 		await page.waitForTimeout(500);
 		const shot = (await page.screenshot({type: 'jpeg', quality: 60})).toString('base64');
 		return {ok: true, landing: info.landing, shot};

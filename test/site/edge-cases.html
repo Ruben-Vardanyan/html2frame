@@ -50,6 +50,22 @@
 			</div>
 
 			<div class="edge">
+				<h3>Icon with alt text, shadow card</h3>
+				<div class="stage">
+					<span class="alt-icon">Rated</span>
+					<div class="shadow-card">
+						<div class="shadow-card-pic"><img src="img/product-2.jpg" alt="card picture"></div>
+						<div class="shadow-card-panel">White panel, rounded on all four corners</div>
+					</div>
+					<div class="shadow-card shadow-card-clip">
+						<div class="shadow-card-pic"><img src="img/product-3.webp" alt="card picture"></div>
+						<div class="shadow-card-panel">Same card, overflow hidden, turned 3° and at 80% opacity</div>
+					</div>
+				</div>
+				<div class="expect">Expected: “★ Rated” with no <code>" / "</code> after the star (Font Awesome writes <code>content: "\f0fe" / ""</code>). One shadow around each card; none inside it where the picture meets the panel. The second card's shadow turns and fades with it. Selecting a card in Figma shows the card's own outline, not a bigger box.</div>
+			</div>
+
+			<div class="edge">
 				<h3>List markers</h3>
 				<div class="stage">
 					<ul class="marker-list"><li>Bullet one</li><li>Bullet two</li></ul>
