@@ -131,6 +131,28 @@ pages drawn by JavaScript.
   the browser's `load` event waits for every file, including a Font Awesome kit and Google Fonts from the
   internet, and one of them was slow. Pages now open at `domcontentloaded`, then wait up to 15 s for `load`;
   past that they are captured as they are, with a warning (also in the crawler and the panel's login helpers).
+- **`checkVisibility()` is false for `display: contents`.** It has no box, so a `<form style="display: contents">` and
+  its "Delete" button were dropped. Such elements are walked; their children are checked one by one.
+- **Visually hidden is not invisible to scripts.** `clip: rect(0 0 0 0)` (or `clip-path: inset(50%)`) hides a real
+  `<select>` kept behind a custom one, but it has a size and `checkVisibility()` says true: the hidden select was
+  drawn over the custom one. A clip of no area now means not drawn.
+- **The top layer.** A `<dialog>` opened with `showModal()` (or a popover, a fullscreen element) paints above
+  everything, whatever the z-index, with a `::backdrop`. Ranked as an ordinary positioned element inside a card,
+  it came out under the next cards, with no dim layer. Found with `:modal`, `:popover-open`, `:fullscreen`.
+- **Which font really draws the text.** Page scripts cannot tell. A width test cannot tell either for symbols:
+  when DM Sans lacks ★, the serif and monospace fallbacks lack it too, and Windows draws both with Segoe UI
+  Symbol, so the widths match. DevTools `CSS.getPlatformFontsForNode` can, on small hidden probes: the font per
+  stack (`ui-monospace` is not known to Edge on Windows: Consolas) and per symbol. Without it, Figma drew ★ in
+  another font, wider: a partial-fill rating slid off its grey row, and the stars grew over the gap to the date.
+  Not for emoji: given the browser's emoji font (Segoe UI Emoji), Figma drew 🚗 in one colour; left in the page's
+  font, Figma uses its own colour emoji. Emoji are found with `p{RGI_Emoji}` (✈️ with U+FE0F is one, plain ✈ is not).
+  A row of stars alone also sat lower than the date beside it: CSS puts the baseline by the text's own font and
+  draws the borrowed ★ on it, Figma lays the line out by the star's font (and its star can be bigger). The capture
+  records where the browser drew the ink (canvas metrics; matches the pixels to 0.02 px) and the plugin centres
+  Figma's rendered ink on it.
+- **A file input's words are hidden.** "Choose File" / "No file chosen" live in the input's user-agent shadow
+  tree; DevTools `DOM.getDocument({pierce: true})` reads them, in the browser's language. The button's size is
+  `getComputedStyle(el, '::file-selector-button')`.
 - **Viewport emulation in automation panes** may reset between turns. Re-apply it before each capture and
   check `innerWidth`.
 

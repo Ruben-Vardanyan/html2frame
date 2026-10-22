@@ -9,6 +9,7 @@
 	const SHOT_TAGS = /^(canvas|video|iframe|object|embed)$/;
 	let SHOTS = 0;
 	const COVERS = []; // fixed frames over the whole window, stretched to the page's height
+	let TOP = new Set(), TOP_NOW = null; // the top layer (see topLayer); the one being walked on its own
 
 	const INLINE = /^(inline|contents)$/;
 	let OPTS = {replaceText: {}};
@@ -340,6 +341,42 @@
 		return null;
 	}
 
+	// The legacy CSS clip (only on position absolute / fixed): rect(top, right, bottom, left), each from the box's
+	// top-left corner, auto = that edge. -> [left, top, right, bottom] in the w×h box, or null.
+	function legacyClipRect(cs, w, h) {
+		if (!/^(absolute|fixed)$/.test(cs.position) || !cs.clip || cs.clip === 'auto') return null;
+		const m = cs.clip.match(/rect\(([^)]*)\)/);
+		if (!m) return null;
+		const v = m[1].trim().split(/\s*,\s*|\s+/);
+		const at = (s, edge) => (!s || s === 'auto' ? edge : px(s));
+		return [at(v[3], 0), at(v[0], 0), at(v[1], w), at(v[2], h)];
+	}
+
+	// a legacy clip that cuts part of the box -> an SVG path for cp (the whole box: nothing to cut)
+	function legacyClip(cs, w, h) {
+		const r = legacyClipRect(cs, w, h);
+		if (!r || (r[0] <= 0 && r[1] <= 0 && r[2] >= w && r[3] >= h)) return null;
+		const n = x => Math.round(x * 100) / 100;
+		return 'M' + n(r[0]) + ' ' + n(r[1]) + ' H' + n(r[2]) + ' V' + n(r[3]) + ' H' + n(r[0]) + ' Z';
+	}
+
+	// Clipped down to nothing: the "visually hidden" pattern (screen-reader text, a real <select> or <input> kept
+	// for forms behind a custom one): clip: rect(0 0 0 0), or clip-path: inset(50%). The browser shows nothing,
+	// although the element has a size and checkVisibility() says it is visible.
+	function clippedAway(el, cs) {
+		const b = el.getBoundingClientRect();
+		const r = legacyClipRect(cs, b.width, b.height);
+		if (r && (r[2] - r[0] < 0.5 || r[3] - r[1] < 0.5)) return true;
+		const m = (cs.clipPath || '').match(/^inset\(([^)]*)\)/);
+		if (m) {
+			const v = m[1].replace(/\bround\b.*$/, '').trim().split(/\s+/);
+			const [t, rt, bt, l] = [v[0], v[1] || v[0], v[2] || v[0], v[3] || v[1] || v[0]];
+			const len = (s, ref) => (/%$/.test(s) ? parseFloat(s) / 100 * ref : px(s));
+			if (b.width - len(l, b.width) - len(rt, b.width) < 0.5 || b.height - len(t, b.height) - len(bt, b.height) < 0.5) return true;
+		}
+		return false;
+	}
+
 	// The installed font the browser really draws a generic family with (sans-serif -> Arial on Windows, Helvetica on
 	// macOS), found by comparing text widths; null when no candidate matches. Figma has no generic families.
 	const GENERIC_CANDIDATES = {
@@ -376,18 +413,82 @@
 		return (GENERIC_FONT[key] = found);
 	}
 
+	// one font stack as the browser uses it: family list, weight, style (the key of OPTS.fonts)
+	function fontKey(cs) {
+		return cs.fontFamily + '|' + (parseInt(cs.fontWeight, 10) || 400) + '|' + cs.fontStyle;
+	}
+
+	// Symbols (★ ✓ → ֏): the page's font often lacks them, and the system draws them with another (Segoe UI Symbol,
+	// Apple Symbols…), of other widths. Not emoji (see EMOJI), nor letters (the plugin's per-script fonts).
+	const PROBE_CHAR = /[\p{S}\p{Extended_Pictographic}]/u;
+	const PROBE_TEXT = 'Hamburgefonstiv 0123';
+
+	// Small hidden spans for capture.js to ask the browser which font really draws them (DevTools:
+	// CSS.getPlatformFontsForNode): one per font stack in use (its letters) and one per symbol written in it.
+	// Called after prepare(), so ::before/::after text counts. -> [{i, kind, key, loaded}], loaded = the stack's
+	// web fonts that are loaded (the browser names those by their file, not by the CSS family).
+	function probeFonts() {
+		const stacks = new Map(), glyphs = new Map();
+		const note = (cs, text) => {
+			const k = fontKey(cs);
+			if (!stacks.has(k)) stacks.set(k, cs);
+			for (const ch of text || '') {
+				if (ch.codePointAt(0) > 0x7f && PROBE_CHAR.test(ch) && glyphs.size < 400 && !glyphs.has(k + '\u0001' + ch)) glyphs.set(k + '\u0001' + ch, [cs, ch]);
+			}
+		};
+		const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+		for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+			if (n.parentElement && n.nodeValue.trim() && !n.parentElement.closest('svg')) note(getComputedStyle(n.parentElement), n.nodeValue);
+		}
+		for (const el of document.querySelectorAll('input, select, textarea, button')) {
+			note(getComputedStyle(el), el.tagName === 'SELECT' ? (el.selectedOptions[0] || {}).textContent : (el.value || el.placeholder));
+		}
+		const box = document.createElement('div');
+		box.id = '__h2f-probes';
+		box.style.cssText = 'position:absolute;left:0;top:0;opacity:0;pointer-events:none;white-space:nowrap;';
+		const out = [];
+		const add = (cs, text, kind, key) => {
+			const s = document.createElement('span');
+			for (const p of ['font-family', 'font-weight', 'font-style', 'font-stretch']) s.style.setProperty(p, cs.getPropertyValue(p));
+			s.style.fontSize = '16px';
+			s.textContent = text;
+			s.setAttribute('data-h2f-probe', String(out.length));
+			box.appendChild(s);
+			const loaded = cs.fontFamily.split(',').map(f => f.trim().replace(/^["']|["']$/g, ''))
+				.filter(f => [...document.fonts].some(ff => ff.status === 'loaded' && ff.family.replace(/^["']|["']$/g, '') === f));
+			out.push({i: out.length, kind, key, loaded});
+		};
+		for (const [k, cs] of stacks) add(cs, PROBE_TEXT, 'stack', k);
+		for (const [k, [cs, ch]] of glyphs) add(cs, ch, 'glyph', k);
+		document.body.appendChild(box);
+		return out;
+	}
+
+	function dropProbes() {
+		const box = document.getElementById('__h2f-probes');
+		if (box) box.remove();
+	}
+
 	function fontInfo(cs) {
 		// the whole stack: the browser picks per letter (e.g. Armenian from one font, Latin from the next), and so can the plugin
-		const ffs = [];
+		let ffs = [];
 		for (const f of cs.fontFamily.split(',').map(f => f.trim().replace(/^["']|["']$/g, '')).filter(Boolean)) {
 			// a generic family: first the font it stands for here, so Figma gets the same letter widths
 			const real = genericFont(f);
 			if (real && !ffs.includes(real)) ffs.push(real);
 			ffs.push(f);
 		}
+		// the font the browser really drew the stack with (capture.js asked it): the families before it were not used
+		// (not installed, not loaded, or a generic this browser does not know, like ui-monospace on Windows)
+		const fk = fontKey(cs);
+		const used = OPTS.fonts && OPTS.fonts.stacks && OPTS.fonts.stacks[fk];
+		if (used) {
+			const i = ffs.findIndex(f => f.toLowerCase() === used.toLowerCase());
+			ffs = i >= 0 ? ffs.slice(i) : [used].concat(ffs);
+		}
 		const ff = ffs[0] || 'Inter';
 		return {
-			ff, ffs, fw: parseInt(cs.fontWeight, 10) || 400, fs: px(cs.fontSize), it: cs.fontStyle === 'italic',
+			ff, ffs, fk, fw: parseInt(cs.fontWeight, 10) || 400, fs: px(cs.fontSize), it: cs.fontStyle === 'italic',
 			lh: cs.lineHeight === 'normal' ? null : px(cs.lineHeight),
 			ls: cs.letterSpacing === 'normal' ? 0 : px(cs.letterSpacing),
 			// the letters' paint: -webkit-text-fill-color when set (transparent for gradient text), else color
@@ -418,7 +519,7 @@
 		return lines;
 	}
 
-	function textNode(text, rects, bound, cs, lineCount) {
+	function textNode(text, rects, bound, cs, lineCount, el) {
 		const f = fontInfo(cs);
 		const b = box(bound);
 		const ts = shadows(cs.textShadow).map(({x, y, blur, c}) => ({x, y, blur, c}));
@@ -440,7 +541,27 @@
 		}
 		// every line ends at a <br> or \n, none wraps: Figma must not wrap it either (its fonts can be a bit wider)
 		if (lines > 1 && text.split('\n').length === lines) extra.nw = true;
+		// wrapping: the width the browser wrapped the lines at, so Figma breaks them at the same words
+		if (lines > 1 && !extra.nw && el) {
+			const aw = lineWidth(el, rects, al);
+			if (aw > b.w + 0.5) extra.aw = Math.round(aw * 100) / 100;
+		}
 		return Object.assign({t: 't', s: text, x: b.x, y, w: b.w, h, al, multi: lines > 1}, f, extra);
+	}
+
+	// The width lines wrap at: the content box of the block the text flows in. 0 when that is not what decided the
+	// breaks: lines that start (or, right-aligned, end) at different places (beside a float), or balanced wrapping
+	// (text-wrap: balance / pretty breaks earlier on purpose).
+	function lineWidth(el, rects, al) {
+		let blk = el;
+		while (blk && /^(inline|contents)$/.test(getComputedStyle(blk).display)) blk = blk.parentElement;
+		if (!blk) return 0;
+		const bcs = getComputedStyle(blk);
+		if (/balance|pretty/.test((bcs.textWrap || '') + ' ' + (bcs.textWrapStyle || ''))) return 0;
+		const ls = lineGroups(rects).slice(1); // the first line may start mid-line (after a link or an icon)
+		const edge = l => (al === 'right' ? Math.max(...l.rects.map(r => r.right)) : l.left);
+		if (al !== 'center' && ls.some(l => Math.abs(edge(l) - edge(ls[0])) > 1)) return 0;
+		return blk.clientWidth - px(bcs.paddingLeft) - px(bcs.paddingRight);
 	}
 
 	// Line boxes that share a top but sit apart are CSS columns: their left edges, sorted; null for normal text.
@@ -540,9 +661,9 @@
 				range.setStart(child, a);
 				range.setEnd(child, z);
 				const b = range.getBoundingClientRect();
-				if (b.width > 0 && b.height > 0) return [textNode(clean(raw), range.getClientRects(), b, cs)];
+				if (b.width > 0 && b.height > 0) return [textNode(clean(raw), range.getClientRects(), b, cs, 0, child.parentElement)];
 			}
-			return [textNode(clean(raw), rects, bound, cs)];
+			return [textNode(clean(raw), rects, bound, cs, 0, child.parentElement)];
 		}
 		// which column each character sits in; the text of a column is one stretch of the string
 		const colAt = [];
@@ -584,6 +705,8 @@
 		if (SKIP_TAGS.test(el.tagName) || el.namespaceURI !== 'http://www.w3.org/1999/xhtml') return false;
 		if (/^(img|input|select|textarea|button)$/i.test(el.tagName) || SHOT_TAGS.test(el.tagName.toLowerCase())) return false;
 		const cs = getComputedStyle(el);
+		// display: contents draws no box (no background, border, opacity): only what is inside counts
+		if (cs.display === 'contents') return cs.visibility === 'visible' && [...el.childNodes].every(isFlowNode);
 		if (cs.display !== 'inline' || cs.visibility !== 'visible' || parseFloat(cs.opacity) < 1) return false;
 		if (rgba(cs.backgroundColor) || border(cs) || shadows(cs.boxShadow).length || (cs.backgroundImage && cs.backgroundImage !== 'none')) return false;
 		const fx = effectsOf(cs);
@@ -618,7 +741,87 @@
 	}
 
 	const SPACE = /[ \t\n\r\f]/;
-	const STYLE_KEYS = ['ff', 'ffs', 'fw', 'it', 'fs', 'c', 'td', 'tc', 'ls'];
+	const STYLE_KEYS = ['ff', 'ffs', 'fk', 'fw', 'it', 'fs', 'c', 'td', 'tc', 'ls'];
+
+	// Emoji (🚗, ✈️ with its U+FE0F, skin tones, flags, ZWJ sequences): left in the text's own font, so Figma draws
+	// them with its built-in colour emoji. Given the browser's emoji font (Segoe UI Emoji, Apple Color Emoji), Figma
+	// draws them in one colour.
+	let EMOJI;
+	try {
+		EMOJI = new RegExp('\\p{RGI_Emoji}', 'gv');
+	} catch (e) {
+		EMOJI = /\p{Emoji_Presentation}(?:\p{Emoji_Modifier}|‍\p{Extended_Pictographic}️?)*|\p{Extended_Pictographic}️/gu;
+	}
+	function emojiAt(s) {
+		const at = new Set();
+		for (const m of s.matchAll(EMOJI)) for (let i = m.index; i < m.index + m[0].length; i++) at.add(i);
+		return at;
+	}
+
+	// Symbols the text's font lacks get the font the browser drew them with (OPTS.fonts.glyphs, from capture.js), as
+	// runs carrying the whole style of their range (only the font changes). Then the temporary font keys go.
+	function glyphRuns(t) {
+		const map = OPTS.fonts && OPTS.fonts.glyphs;
+		if (map && t.s) {
+			const segs = [];
+			let at = 0;
+			for (const r of (t.runs || []).slice().sort((a, b) => a.s - b.s)) {
+				if (r.s > at) segs.push({s: at, e: r.s, st: null});
+				segs.push({s: r.s, e: r.e, st: r});
+				at = r.e;
+			}
+			if (at < t.s.length) segs.push({s: at, e: t.s.length, st: null});
+			const out = [];
+			const emoji = emojiAt(t.s);
+			const famAt = (st, k) => (emoji.has(k) ? null : map[st.fk + '\u0001' + String.fromCodePoint(t.s.codePointAt(k))] || null);
+			let changed = false;
+			for (const sg of segs) {
+				const st = sg.st || t;
+				let i = sg.s;
+				while (i < sg.e) {
+					const ch = String.fromCodePoint(t.s.codePointAt(i));
+					const fam = famAt(st, i);
+					let e = i + ch.length;
+					while (e < sg.e) {
+						const c2 = String.fromCodePoint(t.s.codePointAt(e));
+						if (famAt(st, e) !== fam) break;
+						e += c2.length;
+					}
+					if (fam) {
+						changed = true;
+						// g: symbols in a fallback font (the plugin may space them to the browser's width)
+						out.push(Object.assign({}, ...STYLE_KEYS.map(k => ({[k]: st[k]})), {s: i, e, ff: fam, ffs: [fam].concat(st.ffs.filter(f => f !== fam)), g: 1}));
+					} else if (sg.st) out.push(Object.assign({}, sg.st, {s: i, e}));
+					i = e;
+				}
+			}
+			if (changed) t.runs = out;
+			if (changed && !t.multi) symbolInk(t);
+		}
+		delete t.fk;
+		for (const r of t.runs || []) delete r.fk;
+	}
+
+	// One line made only of fallback symbols (a row of ★): where the browser draws their ink, [top, bottom] in page
+	// px. The browser puts the line's baseline by the text's own font (half the leading, then its ascent) and draws
+	// the borrowed glyphs on it. Figma lays the line out by the symbols' font, whose star may also be another size:
+	// the plugin moves the layer so the ink is centred where the browser had it.
+	function symbolInk(t) {
+		const runs = t.runs || [];
+		const sym = runs.filter(r => r.g);
+		if (!sym.length || [...t.s].some((ch, i) => ch.trim() && !runs.some(r => r.g && i >= r.s && i < r.e))) return;
+		measureCtx = measureCtx || document.createElement('canvas').getContext('2d');
+		const font = fam => (t.it ? 'italic ' : '') + t.fw + ' ' + t.fs + 'px "' + fam + '"';
+		measureCtx.font = font(t.ff);
+		const m = measureCtx.measureText('x');
+		const A = m.fontBoundingBoxAscent, D = m.fontBoundingBoxDescent;
+		if (!(A > 0)) return;
+		const baseline = t.y + (t.lh ? (t.lh - (A + D)) / 2 : 0) + A;
+		measureCtx.font = font(sym[0].ff);
+		const ink = measureCtx.measureText(sym.map(r => t.s.slice(r.s, r.e)).join(''));
+		const n = x => Math.round(x * 100) / 100;
+		t.ink = [n(baseline - ink.actualBoundingBoxAscent), n(baseline + ink.actualBoundingBoxDescent)];
+	}
 
 	// consecutive flow nodes -> text layers (one, or several when the text flows over CSS columns)
 	function flowText(nodes) {
@@ -675,7 +878,7 @@
 		const left = Math.min(...rects.map(r => r.left)), top = Math.min(...rects.map(r => r.top));
 		const bound = new DOMRect(left, top, Math.max(...rects.map(r => r.right)) - left, Math.max(...rects.map(r => r.bottom)) - top);
 		const base = texts[0];
-		const node = textNode(s, rects, bound, base.cs, lines.length);
+		const node = textNode(s, rects, bound, base.cs, lines.length, base.node.parentElement);
 		const styleOf = p => {
 			const f = fontInfo(p.cs);
 			if (f.td === 'none' && p.td) f.td = p.td;
@@ -1100,6 +1303,54 @@
 		}
 	}
 
+	// <input type=file>: no value or placeholder to draw; the browser shows a button ("Choose File", styled by
+	// ::file-selector-button) and, after it, what is chosen ("No file chosen", a name, "2 files"). The words come
+	// from capture.js (OPTS.fileTexts, the browser's own, in its language), else English.
+	function fileContent(el, cs, b, node) {
+		const pl = px(cs.paddingLeft) + px(cs.borderLeftWidth), pr = px(cs.paddingRight) + px(cs.borderRightWidth);
+		const pt = px(cs.paddingTop) + px(cs.borderTopWidth), pb = px(cs.paddingBottom) + px(cs.borderBottomWidth);
+		const cw = b.w - pl - pr, ch = b.h - pt - pb;
+		if (cw < 2 || ch < 2) return; // shrunk out of sight (a custom upload button stands in for it)
+		const said = (OPTS.fileTexts || {})[el.getAttribute('data-h2f-file')] || {};
+		const n = el.files ? el.files.length : 0;
+		const label = said.button || (el.multiple ? 'Choose Files' : 'Choose File');
+		const status = said.status || (n === 1 ? el.files[0].name : n > 1 ? n + ' files' : el.multiple ? 'No files chosen' : 'No file chosen');
+		const rtl = cs.direction === 'rtl';
+		const bcs = getComputedStyle(el, '::file-selector-button');
+		let used = 0;
+		if (bcs.display !== 'none') {
+			const bf = fontInfo(bcs);
+			let bw = px(bcs.width), bh = px(bcs.height);
+			if (!(bw > 0) || !(bh > 0)) {
+				// width/height auto: the label plus the button's padding and border
+				const ctx = document.createElement('canvas').getContext('2d');
+				ctx.font = bcs.font || (bf.fs + 'px ' + bf.ff);
+				bw = ctx.measureText(label).width + px(bcs.paddingLeft) + px(bcs.paddingRight) + px(bcs.borderLeftWidth) + px(bcs.borderRightWidth);
+				bh = (bf.lh || bf.fs * 1.2) + px(bcs.paddingTop) + px(bcs.paddingBottom) + px(bcs.borderTopWidth) + px(bcs.borderBottomWidth);
+			}
+			bw = Math.min(bw, cw);
+			const bx = rtl ? b.x + b.w - pr - bw : b.x + pl, by = b.y + pt + (ch - bh) / 2;
+			// the native button: the browser's grey. Only while its default styles are untouched (default grey
+			// background, default outset border): restyled, it is drawn from its own CSS even with appearance: auto.
+			const bgc = rgba(bcs.backgroundColor) || [0, 0, 0, 0];
+			const native = bcs.appearance !== 'none' && bcs.webkitAppearance !== 'none' && bcs.borderTopStyle === 'outset'
+				&& Math.abs(bgc[0] - 0.937) < 0.02 && Math.abs(bgc[1] - 0.937) < 0.02 && Math.abs(bgc[2] - 0.937) < 0.02;
+			const bb = {x: bx, y: by, w: bw, h: bh};
+			const button = Object.assign({t: 'f', n: 'file button', sh: [], op: 1, clip: false, ch: []}, bb, native
+				? {bg: [0.937, 0.937, 0.937, 1], br: {tl: 2, tr: 2, br: 2, bl: 2}, bd: {w: [1, 1, 1, 1], c: [0.463, 0.463, 0.463, 1], dash: false}}
+				: {bg: rgba(bcs.backgroundColor), br: radius(bcs, bw, bh), bd: border(bcs)});
+			const lh = bf.lh || bf.fs * 1.2;
+			button.ch.push(Object.assign({}, bf, {t: 't', s: replaceText(label), x: bx, y: by + (bh - lh) / 2, w: bw, h: lh, lh, al: 'center', multi: false, fixed: true}));
+			node.ch.push(button);
+			used = bw + px(rtl ? bcs.marginLeft : bcs.marginRight);
+		}
+		const f = fontInfo(cs);
+		const lh = f.lh || f.fs * 1.3;
+		const w = cw - used;
+		if (w < 1) return;
+		node.ch.push(Object.assign({}, f, {t: 't', s: replaceText(status), x: rtl ? b.x + pl : b.x + pl + used, y: b.y + pt + (ch - lh) / 2, w, h: lh, lh, al: rtl ? 'right' : 'left', multi: false, fixed: true}));
+	}
+
 	function controlContent(el, cs, b, node) {
 		const tag = el.tagName.toLowerCase();
 		if (tag === 'input' && (el.type === 'checkbox' || el.type === 'radio')) {
@@ -1117,6 +1368,7 @@
 			}
 			return;
 		}
+		if (tag === 'input' && el.type === 'file') return fileContent(el, cs, b, node);
 		let text = '', placeholder = false;
 		if (tag === 'select') text = el.selectedOptions[0] ? el.selectedOptions[0].textContent.trim() : '';
 		else if (el.type === 'password' && el.value) text = '•'.repeat(el.value.length);
@@ -1197,7 +1449,10 @@
 	// [layer, z, stacking context?] from the element's own style
 	function stackingOf(el, cs, tf) {
 		const positioned = cs.position !== 'static';
-		const parent = el.parentElement && getComputedStyle(el.parentElement).display;
+		// the box it is laid out in: a display: contents parent has none, look past it
+		let up = el.parentElement;
+		while (up && getComputedStyle(up).display === 'contents') up = up.parentElement;
+		const parent = up && getComputedStyle(up).display;
 		// z-index works on positioned elements and on flex and grid items
 		const zApplies = cs.zIndex !== 'auto' && (positioned || /(flex|grid)$/.test(parent || ''));
 		const z = zApplies ? parseInt(cs.zIndex, 10) || 0 : 0;
@@ -1346,12 +1601,45 @@
 	// Transformed elements are measured with their transform switched off, so the element and everything
 	// inside it get their real (unrotated, unscaled) boxes; the transform goes on the element's node as `tf`
 	// and the plugin applies it in Figma (children follow, as in the browser).
+	// The top layer: a <dialog> opened with showModal(), an open popover, a fullscreen element. The browser paints
+	// it above everything, whatever the z-index, and its ancestors' overflow, opacity and transforms do not apply.
+	// A <dialog open> without showModal() is not in it. Order: the document's (the browser keeps opening order,
+	// which pages cannot read; they mostly match).
+	function topLayer() {
+		const found = new Set();
+		for (const sel of [':modal', ':popover-open', ':fullscreen']) {
+			try {
+				for (const el of document.querySelectorAll(sel)) found.add(el);
+			} catch (e) {
+				// selector unknown to this browser
+			}
+		}
+		return [...found].sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+	}
+
+	// ::backdrop of a top-layer element (a modal's dim layer): over the whole page, as it covers the window wherever
+	// you scroll; null when it shows nothing (a popover's is transparent)
+	function backdropOf(el, W, H) {
+		let cs;
+		try {
+			cs = getComputedStyle(el, '::backdrop');
+		} catch (e) {
+			return null;
+		}
+		const bg = rgba(cs.backgroundColor), fx = effectsOf(cs), op = parseFloat(cs.opacity);
+		if ((!bg && !fx.props.bblur) || op === 0 || cs.display === 'none') return null;
+		return Object.assign({t: 'f', n: 'backdrop', x: 0, y: 0, w: W, h: H, bg, br: {tl: 0, tr: 0, br: 0, bl: 0}, bd: null, sh: [], op: isNaN(op) ? 1 : op, clip: false, ch: []}, fx.props);
+	}
+
 	async function walk(el, out) {
 		if (SKIP_TAGS.test(el.tagName)) return;
+		if (TOP.has(el) && el !== TOP_NOW) return; // the top layer is walked last, on its own
 		const cs = getComputedStyle(el);
 		if (cs.display === 'none' || cs.visibility === 'hidden' || cs.visibility === 'collapse' || parseFloat(cs.opacity) === 0) return;
-		// not rendered although its own style says otherwise (content-visibility: hidden, e.g. a closed <details>)
-		if (el.checkVisibility && !el.checkVisibility()) return;
+		// not rendered although its own style says otherwise (content-visibility: hidden, e.g. a closed <details>).
+		// Not asked of display: contents: it has no box, so the answer is always "no"; its children are asked instead.
+		if (cs.display !== 'contents' && el.checkVisibility && !el.checkVisibility()) return;
+		if (clippedAway(el, cs)) return;
 		const tf = transformOf(cs);
 		const stack = stackingOf(el, cs, tf);
 		const start = out.length;
@@ -1510,8 +1798,13 @@
 			const cls = (typeof el.className === 'string' ? el.className : '').trim().split(/\s+/).filter(c => c && !c.startsWith('__h2f') && !c.startsWith('js-'))[0];
 			const fx = effectsOf(cs);
 			node = Object.assign({t: 'f', n: tag + (cls ? '.' + cls : ''), bg, br: radius(cs, b.w, b.h), bd, sh: sh.concat(fx.drop), op: parseFloat(cs.opacity), clip, ch: []}, b, fx.props);
-			const cp = clipPathOf(cs, b.w, b.h);
+			const cp = clipPathOf(cs, b.w, b.h) || legacyClip(cs, b.w, b.h);
 			if (cp) node.cp = cp;
+			// a scroll area with more inside than shows (a row of cards to swipe): cut as the browser shows it,
+			// and scrollable in Figma prototypes
+			const sx = /auto|scroll/.test(cs.overflowX) && el.scrollWidth > el.clientWidth + 1;
+			const sy = /auto|scroll/.test(cs.overflowY) && el.scrollHeight > el.clientHeight + 1;
+			if (!isControl && (sx || sy)) node.scr = sx && sy ? 'xy' : sx ? 'x' : 'y';
 			out.push(own(el, node));
 			children = node.ch;
 			if (hasBgImage) await backgrounds(el, cs, b, node);
@@ -1553,8 +1846,12 @@
 		}
 	}
 
-	async function extract(opts) {
-		OPTS = Object.assign({replaceText: {}}, opts || {});
+	// Once per page, before anything is measured: animations stopped, scrolled to the top, ::before/::after and list
+	// markers turned into real elements, fonts loaded. capture.js calls it first to probe fonts (probeFonts).
+	let PREPARED = false;
+	async function prepare() {
+		if (PREPARED) return;
+		PREPARED = true;
 		// 3D scenes keep the frame they show now (a spinning ring mid-turn, as people see it): their animations are
 		// paused where they are. Everything else is stopped (animations off: final, readable state).
 		ROOTS_3D = find3dRoots(document.body);
@@ -1580,6 +1877,11 @@
 		materialisePseudo(document.body);
 		materialiseMarkers(document.body); // after ::before, so a marker comes first in the line
 		await document.fonts.ready;
+	}
+
+	async function extract(opts) {
+		OPTS = Object.assign({replaceText: {}}, opts || {});
+		await prepare();
 		const W = document.documentElement.clientWidth;
 		const H = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
 		const bodyBg = rgba(getComputedStyle(document.body).backgroundColor) || rgba(getComputedStyle(document.documentElement).backgroundColor) || [1, 1, 1, 1];
@@ -1587,9 +1889,20 @@
 		const rootCs = getComputedStyle(document.body);
 		if (rootCs.backgroundImage && rootCs.backgroundImage !== 'none') await backgrounds(document.body, rootCs, root, root);
 		COVERS.length = 0;
+		TOP = new Set(topLayer());
 		for (const child of document.body.childNodes) {
 			if (child.nodeType === Node.ELEMENT_NODE) await walk(child, root.ch);
 		}
+		// the top layer, in order: each element's ::backdrop (over the whole page), then the element
+		const tops = [];
+		for (const el of TOP) {
+			const bd = backdropOf(el, W, H);
+			if (bd) tops.push(bd);
+			TOP_NOW = el;
+			await walk(el, tops);
+			TOP_NOW = null;
+		}
+		for (const n of tops) n.abs = true;
 		// a fixed layer over the whole window (a modal's dim backdrop) covers it wherever you scroll: on the
 		// full-page frame, down to the bottom. What is inside stays where the window showed it (no Auto Layout,
 		// which would centre a modal in the taller box).
@@ -1598,8 +1911,15 @@
 			delete n.lay;
 		}
 		paintOrder(root.ch, null);
+		root.ch.push(...tops); // above everything, whatever the z-index
+		// symbols in the font that drew them; the temporary font keys go
+		(function fonts(n) {
+			if (n.t === 't') glyphRuns(n);
+			delete n.fk;
+			for (const c of n.ch || []) fonts(c);
+		})(root);
 		return {width: W, height: H, title: document.title, root};
 	}
 
-	window.__html2frame = {extract};
+	window.__html2frame = {extract, prepare, probeFonts, dropProbes};
 })();

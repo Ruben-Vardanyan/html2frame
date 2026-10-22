@@ -65,6 +65,12 @@
 			]
 		},
 		{"name": "Edge cases", "path": "/edge-cases.html", "group": "Public"},
+		{
+			"name": "Edge cases — modal", "path": "/edge-cases.html", "group": "Public",
+			"steps": [
+				{"eval": "document.getElementById('modal-test').showModal(); document.getElementById('pop-test').showPopover()"}
+			]
+		},
 		{"name": "Sign in", "path": "/login.html", "group": "Public"},
 		{"name": "Account — no login (expect a redirect warning)", "path": "/account.html", "group": "Public"},
 

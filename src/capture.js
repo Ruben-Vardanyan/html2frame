@@ -211,6 +211,98 @@ async function scrollThrough(page) {
 	});
 }
 
+// The fonts the browser really draws with, asked of the browser itself (DevTools CSS.getPlatformFontsForNode) on
+// small hidden probes the extractor sets up (probeFonts): per font stack (ui-monospace on Windows is Consolas), and
+// per symbol the page font lacks (★ in Segoe UI Symbol). -> {stacks: {key: family}, glyphs: {key U+0001 char:
+// family}}; empty when the browser cannot say (the extractor then keeps the CSS stack as written).
+async function usedFonts(page) {
+	const out = {stacks: {}, glyphs: {}};
+	const probes = await page.evaluate(() => window.__html2frame.probeFonts());
+	let cdp = null;
+	try {
+		if (!probes.length) return out;
+		cdp = await page.context().newCDPSession(page);
+		await cdp.send('DOM.enable');
+		await cdp.send('CSS.enable');
+		const {root} = await cdp.send('DOM.getDocument', {depth: 0});
+		const {nodeIds} = await cdp.send('DOM.querySelectorAll', {nodeId: root.nodeId, selector: '[data-h2f-probe]'});
+		const glyphs = [];
+		for (const nodeId of nodeIds) {
+			const {attributes} = await cdp.send('DOM.getAttributes', {nodeId});
+			const p = probes[Number(attributes[attributes.indexOf('data-h2f-probe') + 1])];
+			const {fonts} = await cdp.send('CSS.getPlatformFontsForNode', {nodeId});
+			if (!p || !fonts || !fonts.length) continue;
+			const top = fonts.slice().sort((a, b) => b.glyphCount - a.glyphCount)[0];
+			if (p.kind === 'stack') {
+				// a web font is named by its file ("DM Sans 9pt"): its CSS name is the stack's loaded web font
+				const family = top.isCustomFont ? p.loaded[0] : top.familyName;
+				if (family) out.stacks[p.key] = family;
+			} else if (!top.isCustomFont) {
+				glyphs.push([p.key, top.familyName]);
+			}
+		}
+		// a symbol drawn by the stack's own font needs nothing
+		for (const [key, family] of glyphs) {
+			if (family && family !== out.stacks[key.split('\u0001')[0]]) out.glyphs[key] = family;
+		}
+	} catch (e) {
+		// no DevTools protocol: the CSS stacks as written
+	} finally {
+		if (cdp) await cdp.detach().catch(() => {});
+		await page.evaluate(() => window.__html2frame.dropProbes()).catch(() => {});
+	}
+	return out;
+}
+
+// What each file input shows ("Choose File" / "No file chosen", in the browser's language, or the file's name):
+// it lives in the input's user-agent shadow tree, which page scripts cannot read; the DevTools protocol can.
+// -> {index: {button, status}}, the index being the data-h2f-file attribute set here. Empty when unavailable:
+// the extractor then uses the English words.
+async function fileInputTexts(page) {
+	const count = await page.evaluate(() => {
+		let i = 0;
+		for (const el of document.querySelectorAll('input[type=file]')) el.setAttribute('data-h2f-file', String(i++));
+		return i;
+	});
+	if (!count) return {};
+	const out = {};
+	let cdp = null;
+	try {
+		cdp = await page.context().newCDPSession(page);
+		const {root} = await cdp.send('DOM.getDocument', {depth: -1, pierce: true});
+		const kids = n => (n.shadowRoots || []).concat(n.children || []);
+		const attr = (n, k) => {
+			const a = n.attributes || [];
+			const i = a.indexOf(k);
+			return i >= 0 && i % 2 === 0 ? a[i + 1] : undefined;
+		};
+		(function walk(n) {
+			const id = n.nodeName === 'INPUT' ? attr(n, 'data-h2f-file') : undefined;
+			if (id !== undefined) {
+				const found = {};
+				(function inside(x) {
+					for (const c of kids(x)) {
+						// the button is an inner input; its own inside repeats its label
+						if (c.nodeName === 'INPUT') {
+							if (found.button === undefined) found.button = attr(c, 'value');
+							continue;
+						}
+						if (c.nodeType === 3 && c.nodeValue.trim() && found.status === undefined) found.status = c.nodeValue.trim();
+						inside(c);
+					}
+				})(n);
+				out[id] = found;
+			}
+			for (const c of kids(n)) walk(c);
+		})(root);
+	} catch (e) {
+		// no DevTools protocol (another browser): English words
+	} finally {
+		if (cdp) await cdp.detach().catch(() => {});
+	}
+	return out;
+}
+
 async function capturePage(page, entry, settings, site, warn) {
 	const steps = entry.steps || [];
 	if (stepKind(steps[0]) !== 'goto') {
@@ -225,7 +317,10 @@ async function capturePage(page, entry, settings, site, warn) {
 	await scrollThrough(page);
 	const innerWidth = await page.evaluate(() => innerWidth);
 	if (!(await page.evaluate(() => !!window.__html2frame))) await page.evaluate(fs.readFileSync(EXTRACT_JS, 'utf8'));
-	const result = await page.evaluate(o => window.__html2frame.extract(o), {replaceText: settings.replaceText || {}});
+	await page.evaluate(() => window.__html2frame.prepare());
+	const fonts = await usedFonts(page);
+	const fileTexts = await fileInputTexts(page);
+	const result = await page.evaluate(o => window.__html2frame.extract(o), {replaceText: settings.replaceText || {}, fileTexts, fonts});
 	const u = new URL(page.url());
 	return Object.assign(result, {url: u.pathname + u.search, innerWidth});
 }

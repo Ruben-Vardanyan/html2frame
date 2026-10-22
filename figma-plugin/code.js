@@ -102,12 +102,14 @@ async function pickFont(stack, fw, it, script) {
 	const key = stack.join(',') + '|' + fw + '|' + it + '|' + (script || '');
 	if (fontCache[key]) return fontCache[key];
 	const sc = script ? SCRIPTS[script] : null;
-	const families = [];
+	// the page's own families first, in its order; only then what its generic names may stand for (a guess like
+	// Roboto Mono for monospace must not win over a Consolas the page names further on)
+	const families = [], guesses = [];
 	let wanted = null; // the family the page asked for, to report when it is missing
 	for (const f of stack) {
 		const g = GENERIC[f.toLowerCase()];
 		if (g) {
-			if (!sc) families.push(...g);
+			if (!sc) guesses.push(...g);
 			continue;
 		}
 		if (sc ? sc.family.test(f) : !SCRIPT_FAMILY.test(f)) {
@@ -115,7 +117,7 @@ async function pickFont(stack, fw, it, script) {
 			if (!wanted) wanted = f;
 		}
 	}
-	families.push(...(sc ? sc.fallbacks : ['Inter']));
+	families.push(...guesses, ...(sc ? sc.fallbacks : ['Inter']));
 	let chosen = null;
 	for (const f of [...new Set(families)]) {
 		if ((chosen = await loadFamily(f, fw, it))) break;
@@ -212,6 +214,38 @@ function applyRuns(t, n, warn) {
 		} catch (err) {
 			warn('text style not applied on "' + t.name + '": ' + (err && err.message ? err.message : err));
 		}
+	}
+}
+
+// Symbols in a fallback font (runs with g: ★ the page font lacks): Figma may not have that font, or draws it a little
+// wider or narrower. They are spaced so the line is as wide as in the browser: a coloured row of stars cut over a grey
+// one still lines up, and the gap after it stays. At most a quarter of the font size per symbol; letters untouched.
+function matchSymbols(t, n, warn) {
+	const g = (n.runs || []).filter(r => r.g && r.e > r.s);
+	const diff = n.w - t.width;
+	if (!g.length || Math.abs(diff) < 0.5) return;
+	const count = g.reduce((a, r) => a + [...n.s.slice(r.s, r.e)].length, 0);
+	const per = Math.max(-0.25 * n.fs, Math.min(0.25 * n.fs, diff / count));
+	try {
+		for (const r of g) t.setRangeLetterSpacing(r.s, Math.min(r.e, n.s.length), {value: (r.ls || 0) + per, unit: 'PIXELS'});
+	} catch (e) {
+		warn('symbol spacing not applied on "' + t.name + '": ' + (e && e.message ? e.message : e));
+	}
+}
+
+// A line of fallback symbols only (n.ink: where the browser drew their ink, page px): Figma lays it out by the
+// symbols' font, whose glyph may also be another size, so the stars sit higher or lower than the date beside them.
+// The layer moves so the ink's centre is where the browser had it (what Figma really drew: absoluteRenderBounds).
+function centreInk(t, n) {
+	try {
+		const rb = t.absoluteRenderBounds, at = t.absoluteTransform;
+		if (!rb || !at || !(rb.height > 0)) return;
+		const have = rb.y - at[1][2] + rb.height / 2;
+		const want = (n.ink[0] + n.ink[1]) / 2 - n.y;
+		const d = want - have;
+		if (Math.abs(d) > 0.25 && Math.abs(d) < (n.lh || n.h || n.fs)) t.y += d;
+	} catch (e) {
+		// no render bounds (older Figma): left where the line box puts it
 	}
 }
 
@@ -375,6 +409,14 @@ function applyBox(f, n, warn) {
 	if (n.sh && n.sh.length) f.effects = n.sh.filter(s => s.f || !shadowApart(f, n)).map(shadowEffect);
 	if (n.op !== undefined && n.op < 1) f.opacity = n.op;
 	f.clipsContent = !!n.clip;
+	// a scroll area (n.scr): scrolls in prototypes, as in the browser
+	if (n.scr && n.clip) {
+		try {
+			f.overflowDirection = {x: 'HORIZONTAL', y: 'VERTICAL', xy: 'BOTH'}[n.scr] || 'NONE';
+		} catch (e) {
+			warn('scrolling not set on ' + (n.n || 'frame') + ': ' + (e && e.message ? e.message : e));
+		}
+	}
 }
 
 // CSS transform (n.tf: matrix a b c d e f around origin ox oy, see extract.js) on a node already built at its
@@ -631,19 +673,22 @@ async function build(parent, n, ox, oy, warn) {
 		} else if (n.multi && !n.nw) {
 			// wrapping text: a little extra width, since Figma's fonts can be slightly wider than the browser's and
 			// a line that just fits would wrap; the box grows away from the alignment edge
-			const extra = Math.max(2, n.w * 0.03);
+			// a line that just fits would wrap; with aw (the width the browser wrapped at) the same words break
+			const w = Math.max(n.w + Math.max(2, n.w * 0.03), n.aw || 0);
 			t.textAutoResize = 'HEIGHT';
-			t.resize(Math.max(n.w + extra, 1), Math.max(n.h, 1));
-			t.x = n.x - ox - (n.al === 'center' ? extra / 2 : n.al === 'right' ? extra : 0);
+			t.resize(Math.max(w, 1), Math.max(n.h, 1));
+			t.x = n.x - ox - (n.al === 'center' ? (w - n.w) / 2 : n.al === 'right' ? w - n.w : 0);
 		} else {
 			// one line, or lines that all end at a line break (nw): no wrapping at all
 			t.textAutoResize = 'WIDTH_AND_HEIGHT';
+			if (!n.multi && !clipped) matchSymbols(t, n, warn);
 			let x = n.x;
 			if (!clipped && n.al === 'center') x = n.x + (n.w - t.width) / 2;
 			else if (!clipped && n.al === 'right') x = n.x + n.w - t.width;
 			t.x = x - ox;
 		}
 		t.y = n.y - oy;
+		if (n.ink && !n.multi) centreInk(t, n);
 		// gradient text (background-clip: text): the element's background, laid out on its box (fb)
 		if (n.fill && n.fill.length) {
 			const fb = n.fb || {x: n.x, y: n.y, w: n.w, h: n.h};

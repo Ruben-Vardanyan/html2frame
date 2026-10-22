@@ -91,7 +91,20 @@ function makeFigma(opts = {}) {
 			v.forEach(checkPaint);
 			fills = v;
 		}});
+		// position on the page (offsets only); a text's ink: 4 px below its top, 8 px tall (enough to test centring)
+		Object.defineProperty(n, 'absoluteTransform', {get() {
+			let x = 0, y = 0;
+			for (let p = this; p && p.type !== 'PAGE'; p = p.parent) {
+				x += p.x || 0;
+				y += p.y || 0;
+			}
+			return [[1, 0, x], [0, 1, y]];
+		}});
 		if (type === 'TEXT') {
+			Object.defineProperty(n, 'absoluteRenderBounds', {get() {
+				const at = this.absoluteTransform;
+				return {x: at[0][2], y: at[1][2] + 4, width: this.width, height: 8};
+			}});
 			let font = null, chars = '';
 			Object.defineProperty(n, 'fontName', {set(v) {
 				if (!loadedFonts.some(f => f.family === v.family && f.style === v.style)) throw new Error('font not loaded: ' + v.family + ' ' + v.style);
@@ -537,6 +550,57 @@ function synthetic() {
 		assert(/Armenian letters: Sylfaen/.test(text), text);
 		assert(/Noto Sans Armenian \(Armenian letters\) → Sylfaen\n/.test(text), 'missing family reported once:\n' + text);
 		assert(!/ui-monospace/.test(text), 'generic names are not reported as missing:\n' + text);
+	});
+
+	await test('fonts: the page\'s named font before a generic\'s guess; symbols in their fallback font, spaced to the browser\'s width; wrapping at aw', async () => {
+		const env = makeFigma({available: [INTER, ['Roboto Mono', ['Regular']], ['Consolas', ['Regular']], ['DM Sans', ['Regular']], ['Segoe UI Symbol', ['Regular']]]});
+		const dm = ['DM Sans', 'Segoe UI', 'sans-serif'], sym = ['Segoe UI Symbol'].concat(dm);
+		const run = (s, e, ls) => ({s, e, ff: 'Segoe UI Symbol', ffs: sym, fw: 400, it: false, fs: 18, c: [0.1, 0.2, 0.9, 1], td: 'none', tc: 'none', ls, g: 1});
+		const data = textFile([
+			{s: 'admin-company-edit.html', ffs: ['ui-monospace', 'SFMono-Regular', 'Consolas', 'monospace'], ff: 'ui-monospace', fs: 12, multi: true, x: 100, w: 92.4, h: 38.4, aw: 124},
+			{s: '★★★★★', ffs: dm, ff: 'DM Sans', fs: 18, ls: 2, x: 100, w: 85, al: 'left', runs: [run(0, 5, 2)]},
+			{s: 'Cascade Life · ★ 4.5', ffs: dm, ff: 'DM Sans', fs: 18, x: 100, w: 150, al: 'left', runs: [run(15, 16, 0)]},
+			{s: 'centred', multi: true, x: 100, w: 50, h: 40, al: 'center', aw: 120},
+		]);
+		const report = await importAll(env, await load(env, [data]), null, 'single');
+		const page = [];
+		(function w(n) { if (n.type === 'TEXT' && n.parent.type === 'FRAME') page.push(n); (n.children || []).forEach(w); })(env.figma.root.children[0]);
+		const [mono, stars, mixed, centred] = page; // textNodes() keeps 16 px text only
+		assert(!/Failed|not imported|not applied/.test(report), report);
+		assert.strictEqual(mono.fontName.family, 'Consolas', 'the page names Consolas: no Roboto Mono guess first');
+		assert.deepStrictEqual([mono.textAutoResize, mono.width, mono.x], ['HEIGHT', 124, 100], 'wraps at the width the browser wrapped at');
+		assert.deepStrictEqual([centred.width, centred.x], [120, 100 + 25 - 60], 'a centred box stays centred');
+		assert.deepStrictEqual([stars.fontName.family, stars.ranges.length], ['Segoe UI Symbol', 0], 'all symbols: the layer\'s font is the fallback one');
+		// mock: 7 px per character -> 35 px for 85: 50 px over 5 stars, capped at 18 / 4 = 4.5 each, on top of the 2 px
+		assert.deepStrictEqual(stars.styled.filter(x => x[0] === 'LetterSpacing').map(x => [x[1], x[2], x[3].value]), [[0, 5, 6.5]], 'stars spaced to the browser\'s width');
+		assert.deepStrictEqual(mixed.ranges.map(r => r.text + '=' + r.font.family), ['★=Segoe UI Symbol'], 'one symbol in a sentence: only it changes font');
+		const sp = mixed.styled.filter(x => x[0] === 'LetterSpacing');
+		assert.deepStrictEqual(sp.map(x => [x[1], x[2]]), [[15, 16]], 'only the symbol is spaced, the letters keep theirs');
+	});
+
+	await test('a line of symbols only (ink) → moved so its ink is centred where the browser drew it; text with letters stays', async () => {
+		const env = makeFigma({available: [INTER, ['Segoe UI Symbol', ['Regular']]]});
+		const run = {s: 0, e: 5, ff: 'Segoe UI Symbol', ffs: ['Segoe UI Symbol', 'Inter'], fw: 400, it: false, fs: 17, c: [0, 0, 1, 1], td: 'none', tc: 'none', ls: 1, g: 1};
+		const data = textFile([
+			{s: '★★★★★', ff: 'Inter', ffs: ['Inter'], fs: 17, lh: 17, x: 10, y: 100, w: 35, h: 17, runs: [run], ink: [110, 122]},
+			{s: 'October 13, 2026', ff: 'Inter', ffs: ['Inter'], fs: 14, x: 60, y: 100, w: 112, h: 20},
+		]);
+		await importAll(env, await load(env, [data]), null, 'single');
+		const page = [];
+		(function w(n) { if (n.type === 'TEXT' && n.parent.type === 'FRAME') page.push(n); (n.children || []).forEach(w); })(env.figma.root.children[0]);
+		const [stars, date] = page;
+		// the browser's ink centre is 16 px below the line's top; Figma's (mock) 4 + 8 / 2 = 8: 8 px down
+		assert.deepStrictEqual([stars.y, date.y], [108, 100]);
+	});
+
+	await test('scroll area (scr) → a frame that scrolls in prototypes', async () => {
+		const env = makeFigma();
+		const data = textFile([]);
+		data.captures[0].root.ch.push({t: 'f', n: 'row', x: 0, y: 0, w: 300, h: 100, clip: true, scr: 'x', ch: []}, {t: 'f', n: 'plain', x: 0, y: 200, w: 300, h: 100, clip: true, ch: []});
+		await importAll(env, await load(env, [data]), null, 'single');
+		const named = {};
+		(function w(n) { named[n.name] = n; (n.children || []).forEach(w); })(env.figma.root.children[0]);
+		assert.deepStrictEqual([named.row.overflowDirection, named.plain.overflowDirection], ['HORIZONTAL', undefined]);
 	});
 
 	await test('page\'s Armenian font missing → Calibri even when Sylfaen is installed (the owner\'s choice); an installed Noto Sans Armenian is used as is', async () => {

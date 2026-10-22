@@ -349,6 +349,24 @@ input.dot:checked::before { content: ""; position: absolute; right: 2px; bottom:
 .shadow-card { display: flex; flex-direction: column; width: 260px; height: 200px; margin-top: 12px; border-radius: 20px; box-shadow: 2px 2px 10px #c7c2c1; }
 .shadow-card-pic { height: 60%; border-radius: 20px 20px 0 0; overflow: hidden; }
 .shadow-card-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.file-styled::file-selector-button { margin-right: 12px; padding: 6px 14px; border: 0; border-radius: 8px; background: var(--brand); color: #fff; font: 600 13px inherit; }
+/* hidden content, symbols, fonts, scrolling (edge-cases.html) */
+.hc-row { display: flex; gap: 10px; }
+.hc-contents { display: contents; }
+.hc-select { position: relative; margin-top: 12px; }
+.hc-inset { position: absolute; clip-path: inset(50%); }
+.hc-meter { position: relative; display: inline-block; margin-top: 12px; font-size: 18px; line-height: 1; letter-spacing: 2px; white-space: nowrap; color: #d0d4dc; }
+.hc-meter-fill { position: absolute; inset: 0 auto 0 0; overflow: hidden; color: var(--brand); }
+.hc-meta { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 14px; }
+.hc-stars { font-size: 17px; letter-spacing: 1px; color: var(--brand); }
+.hc-files { display: flex; gap: 10px; margin-top: 12px; }
+.hc-file { width: 150px; box-sizing: border-box; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+.hc-scroll { overflow-x: auto; margin-top: 12px; max-width: 320px; border: 1px dashed var(--line); }
+.hc-track { display: flex; gap: 10px; min-width: max-content; padding: 8px; }
+.hc-box { width: 110px; padding: 10px; border-radius: 8px; background: var(--surface); }
+.hc-modal { border: 0; border-radius: 14px; padding: 20px 24px; max-width: 360px; box-shadow: var(--shadow); }
+.hc-modal::backdrop { background: rgba(15, 23, 42, .45); }
+.hc-pop { inset: auto 24px 24px auto; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; }
 .shadow-card-clip { overflow: hidden; transform: rotate(3deg); opacity: 0.8; margin-top: 24px; }
 .shadow-card-panel { height: 40%; padding: 12px; border-radius: 20px; background: #fff; font-size: 13px; }
 .columns { column-count: 2; column-gap: 16px; font-size: 13px; }
