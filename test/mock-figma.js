@@ -38,6 +38,11 @@ function checkPaint(p) {
 	if (p.type === 'IMAGE') {
 		if (!p.imageHash) throw new Error('IMAGE paint without imageHash');
 		if (!/^(FILL|FIT|CROP|TILE)$/.test(p.scaleMode)) throw new Error('bad scaleMode ' + p.scaleMode);
+		if (p.scaleMode === 'CROP') {
+			const m = p.imageTransform;
+			if (!Array.isArray(m) || m.length !== 2 || m.some(r => r.length !== 3)) throw new Error('CROP needs a 2×3 imageTransform');
+			m.forEach(r => r.forEach(v => finite(v, 'imageTransform')));
+		}
 		return;
 	}
 	throw new Error('unknown paint type ' + p.type);
@@ -86,7 +91,20 @@ function makeFigma(opts = {}) {
 			v.forEach(checkPaint);
 			fills = v;
 		}});
+		// position on the page (offsets only); a text's ink: 4 px below its top, 8 px tall (enough to test centring)
+		Object.defineProperty(n, 'absoluteTransform', {get() {
+			let x = 0, y = 0;
+			for (let p = this; p && p.type !== 'PAGE'; p = p.parent) {
+				x += p.x || 0;
+				y += p.y || 0;
+			}
+			return [[1, 0, x], [0, 1, y]];
+		}});
 		if (type === 'TEXT') {
+			Object.defineProperty(n, 'absoluteRenderBounds', {get() {
+				const at = this.absoluteTransform;
+				return {x: at[0][2], y: at[1][2] + 4, width: this.width, height: 8};
+			}});
 			let font = null, chars = '';
 			Object.defineProperty(n, 'fontName', {set(v) {
 				if (!loadedFonts.some(f => f.family === v.family && f.style === v.style)) throw new Error('font not loaded: ' + v.family + ' ' + v.style);
@@ -167,12 +185,15 @@ function makeFigma(opts = {}) {
 		},
 		createNodeFromSvg(s) {
 			if (!s.startsWith('<svg')) throw new Error('bad svg');
-			return node('SVG');
+			const n = node('SVG');
+			n.svg = s;
+			return n;
 		},
-		// flatten(nodes, parent, index): the nodes become one vector at index in parent
+		// flatten(nodes, parent, index): the nodes become one vector at index in parent (svg: the source kept, for tests)
 		flatten(nodes, parent, index) {
 			for (const x of nodes) if (x.parent) x.parent.children.splice(x.parent.children.indexOf(x), 1);
 			const v = node('VECTOR');
+			v.svg = nodes.map(x => x.svg || '').join('');
 			v.parent = parent;
 			parent.children.splice(index === undefined ? parent.children.length : index, 0, v);
 			return v;
@@ -531,6 +552,57 @@ function synthetic() {
 		assert(!/ui-monospace/.test(text), 'generic names are not reported as missing:\n' + text);
 	});
 
+	await test('fonts: the page\'s named font before a generic\'s guess; symbols in their fallback font, spaced to the browser\'s width; wrapping at aw', async () => {
+		const env = makeFigma({available: [INTER, ['Roboto Mono', ['Regular']], ['Consolas', ['Regular']], ['DM Sans', ['Regular']], ['Segoe UI Symbol', ['Regular']]]});
+		const dm = ['DM Sans', 'Segoe UI', 'sans-serif'], sym = ['Segoe UI Symbol'].concat(dm);
+		const run = (s, e, ls) => ({s, e, ff: 'Segoe UI Symbol', ffs: sym, fw: 400, it: false, fs: 18, c: [0.1, 0.2, 0.9, 1], td: 'none', tc: 'none', ls, g: 1});
+		const data = textFile([
+			{s: 'admin-company-edit.html', ffs: ['ui-monospace', 'SFMono-Regular', 'Consolas', 'monospace'], ff: 'ui-monospace', fs: 12, multi: true, x: 100, w: 92.4, h: 38.4, aw: 124},
+			{s: '★★★★★', ffs: dm, ff: 'DM Sans', fs: 18, ls: 2, x: 100, w: 85, al: 'left', runs: [run(0, 5, 2)]},
+			{s: 'Cascade Life · ★ 4.5', ffs: dm, ff: 'DM Sans', fs: 18, x: 100, w: 150, al: 'left', runs: [run(15, 16, 0)]},
+			{s: 'centred', multi: true, x: 100, w: 50, h: 40, al: 'center', aw: 120},
+		]);
+		const report = await importAll(env, await load(env, [data]), null, 'single');
+		const page = [];
+		(function w(n) { if (n.type === 'TEXT' && n.parent.type === 'FRAME') page.push(n); (n.children || []).forEach(w); })(env.figma.root.children[0]);
+		const [mono, stars, mixed, centred] = page; // textNodes() keeps 16 px text only
+		assert(!/Failed|not imported|not applied/.test(report), report);
+		assert.strictEqual(mono.fontName.family, 'Consolas', 'the page names Consolas: no Roboto Mono guess first');
+		assert.deepStrictEqual([mono.textAutoResize, mono.width, mono.x], ['HEIGHT', 124, 100], 'wraps at the width the browser wrapped at');
+		assert.deepStrictEqual([centred.width, centred.x], [120, 100 + 25 - 60], 'a centred box stays centred');
+		assert.deepStrictEqual([stars.fontName.family, stars.ranges.length], ['Segoe UI Symbol', 0], 'all symbols: the layer\'s font is the fallback one');
+		// mock: 7 px per character -> 35 px for 85: 50 px over 5 stars, capped at 18 / 4 = 4.5 each, on top of the 2 px
+		assert.deepStrictEqual(stars.styled.filter(x => x[0] === 'LetterSpacing').map(x => [x[1], x[2], x[3].value]), [[0, 5, 6.5]], 'stars spaced to the browser\'s width');
+		assert.deepStrictEqual(mixed.ranges.map(r => r.text + '=' + r.font.family), ['★=Segoe UI Symbol'], 'one symbol in a sentence: only it changes font');
+		const sp = mixed.styled.filter(x => x[0] === 'LetterSpacing');
+		assert.deepStrictEqual(sp.map(x => [x[1], x[2]]), [[15, 16]], 'only the symbol is spaced, the letters keep theirs');
+	});
+
+	await test('a line of symbols only (ink) → moved so its ink is centred where the browser drew it; text with letters stays', async () => {
+		const env = makeFigma({available: [INTER, ['Segoe UI Symbol', ['Regular']]]});
+		const run = {s: 0, e: 5, ff: 'Segoe UI Symbol', ffs: ['Segoe UI Symbol', 'Inter'], fw: 400, it: false, fs: 17, c: [0, 0, 1, 1], td: 'none', tc: 'none', ls: 1, g: 1};
+		const data = textFile([
+			{s: '★★★★★', ff: 'Inter', ffs: ['Inter'], fs: 17, lh: 17, x: 10, y: 100, w: 35, h: 17, runs: [run], ink: [110, 122]},
+			{s: 'October 13, 2026', ff: 'Inter', ffs: ['Inter'], fs: 14, x: 60, y: 100, w: 112, h: 20},
+		]);
+		await importAll(env, await load(env, [data]), null, 'single');
+		const page = [];
+		(function w(n) { if (n.type === 'TEXT' && n.parent.type === 'FRAME') page.push(n); (n.children || []).forEach(w); })(env.figma.root.children[0]);
+		const [stars, date] = page;
+		// the browser's ink centre is 16 px below the line's top; Figma's (mock) 4 + 8 / 2 = 8: 8 px down
+		assert.deepStrictEqual([stars.y, date.y], [108, 100]);
+	});
+
+	await test('scroll area (scr) → a frame that scrolls in prototypes', async () => {
+		const env = makeFigma();
+		const data = textFile([]);
+		data.captures[0].root.ch.push({t: 'f', n: 'row', x: 0, y: 0, w: 300, h: 100, clip: true, scr: 'x', ch: []}, {t: 'f', n: 'plain', x: 0, y: 200, w: 300, h: 100, clip: true, ch: []});
+		await importAll(env, await load(env, [data]), null, 'single');
+		const named = {};
+		(function w(n) { named[n.name] = n; (n.children || []).forEach(w); })(env.figma.root.children[0]);
+		assert.deepStrictEqual([named.row.overflowDirection, named.plain.overflowDirection], ['HORIZONTAL', undefined]);
+	});
+
 	await test('page\'s Armenian font missing → Calibri even when Sylfaen is installed (the owner\'s choice); an installed Noto Sans Armenian is used as is', async () => {
 		const env = makeFigma({available: [INTER, ['Sylfaen', ['Regular']], ['Segoe UI', ['Regular', 'Bold']], ['Calibri', ['Regular', 'Bold']]]});
 		await importAll(env, await load(env, [textFile([{s: 'Բարև Fixture', ffs: ['Noto Sans Armenian', 'Inter'], ff: 'Noto Sans Armenian', fw: 700}])]), null, 'single');
@@ -607,6 +679,70 @@ function synthetic() {
 		assert.ok(Math.abs(along(0)) < 1e-6 && Math.abs(along(200) - 1) < 1e-6, 'laid out on the element\'s 200px box, not the text\'s');
 	});
 
+	await test('photos: object-fit fill/none/scale-down and object-position → their own area, stretched, cut to the box', async () => {
+		const env = makeFigma();
+		const data = textFile([]);
+		const img = (n, fit, extra) => Object.assign({t: 'img', n, x: 10, y: 10, w: 264, h: 178, data: PNG_1PX, fit, nw: 1200, nh: 400}, extra);
+		data.captures[0].root.ch.push(
+			img('cover', 'cover'), img('contain', 'contain'),
+			img('cover right', 'cover', {pos: '100% 50%', r: {tl: 12, tr: 12, br: 12, bl: 12}}),
+			img('fill', 'fill'), img('fill same ratio', 'fill', {nw: 528, nh: 356}),
+			img('none', 'none', {nw: 1600, nh: 900}),
+			img('scale-down', 'scale-down', {nw: 320, nh: 320, pos: '20px 100%'}),
+			img('shot', 'fill', {nw: undefined, nh: undefined}));
+		await importAll(env, await load(env, [data]), null, 'single');
+		const named = {};
+		(function w(n) { if (!named[n.name]) named[n.name] = n; (n.children || []).forEach(w); })(env.figma.root.children[0]);
+		const mode = n => n.type + ' ' + n.fills.map(f => f.scaleMode).join();
+		assert.strictEqual(mode(named.cover), 'RECT FILL', 'centred cover: Figma\'s Fill, as before');
+		assert.strictEqual(mode(named.contain), 'RECT FIT', 'centred contain: Fit, as before');
+		assert.strictEqual(mode(named['fill same ratio']), 'RECT FILL', 'fill at the image\'s own ratio: nothing to stretch');
+		assert.strictEqual(mode(named.shot), 'RECT FILL', 'no natural size (canvas picture, icon): as before');
+		assert.deepStrictEqual([mode(named.fill), named.fill.width, named.fill.fills[0].imageTransform], ['RECT CROP', 264, [[1, 0, 0], [0, 1, 0]]], 'fill: stretched over the box');
+		const right = named['cover right'], inner = right.children[0];
+		assert.deepStrictEqual([right.type, right.clipsContent, right.fills.length, right.topLeftRadius], ['FRAME', true, 0, 12], 'a frame of the box cuts it, with the corners');
+		assert.deepStrictEqual([mode(inner), Math.round(inner.x), inner.y, Math.round(inner.width), inner.height], ['RECT CROP', -270, 0, 534, 178], 'cover, pinned right');
+		const none = named.none.children[0];
+		assert.deepStrictEqual([Math.round(none.x), Math.round(none.y), none.width, none.height], [-668, -361, 1600, 900], 'none: natural size, centred');
+		const sd = named['scale-down'].children[0];
+		assert.deepStrictEqual([sd.x, sd.y, sd.width, sd.height], [20, 0, 178, 178], 'scale-down: contain (too big for none), 20px in, at the bottom');
+	});
+
+	await test('SVG file from an <img> → cut to its box, with the image\'s corners; an inline <svg> is not cut', async () => {
+		const env = makeFigma();
+		const data = textFile([]);
+		const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="445" height="211" viewBox="0 0 445 211"><g transform="matrix(1.1125 0 0 1.1125 0 -61.3437)"><rect width="400" height="300"/></g></svg>';
+		data.captures[0].root.ch.push(
+			{t: 'svg', n: 'No photo', x: 10, y: 10, w: 445, h: 211, svg, fit: 'cover', r: {tl: 20, tr: 20, br: 0, bl: 0}},
+			{t: 'svg', n: 'icon', x: 10, y: 300, w: 24, h: 24, svg: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"/>'});
+		await importAll(env, await load(env, [data]), null, 'single');
+		const named = {};
+		(function w(n) { named[n.name] = n; (n.children || []).forEach(w); })(env.figma.root.children[0]);
+		const p = named['No photo'];
+		assert.deepStrictEqual([p.clipsContent, p.topLeftRadius, p.topRightRadius, p.bottomLeftRadius], [true, 20, 20, 0], 'cut to the box, rounded top');
+		assert.strictEqual(named.icon.clipsContent, false, 'strokes on an icon\'s edge stay whole');
+	});
+
+	await test('field text: a long placeholder stays on one line, cut off at the field; a textarea wraps', async () => {
+		const env = makeFigma();
+		const long = 'Search by name, ingredient, cuisine or time (e.g. 30 min)'; // 57 chars → 399 px in the mock
+		const data = textFile([
+			{s: long, fixed: true, multi: false, x: 50, y: 20, w: 330, h: 20, al: 'left'},
+			{s: 'tomato', fixed: true, multi: false, x: 50, y: 60, w: 160, h: 20, al: 'center'},
+			{s: long, fixed: true, multi: true, x: 50, y: 100, w: 200, h: 60, al: 'left'},
+		]);
+		const text = await importAll(env, await load(env, [data]), null, 'single');
+		const [placeholder, short, area] = textNodes(env);
+		assert.strictEqual(placeholder.textAutoResize, 'WIDTH_AND_HEIGHT', 'one line, never wrapped');
+		const clip = placeholder.parent;
+		assert.deepStrictEqual([clip.type, clip.name, clip.clipsContent, clip.fills.length, clip.x, clip.width], ['FRAME', 'clip', true, 0, 50, 330], 'cut off at the field\'s inner box');
+		assert.deepStrictEqual([placeholder.x, placeholder.y], [0, 0], 'its start shows');
+		assert.notStrictEqual(short.parent.name, 'clip', 'text that fits needs no clip');
+		assert.deepStrictEqual([short.textAutoResize, short.x], ['WIDTH_AND_HEIGHT', 50 + (160 - 42) / 2], 'centred in the field');
+		assert.deepStrictEqual([area.textAutoResize, area.width], ['HEIGHT', 200], 'a textarea wraps at its width');
+		assert(!/Failed/.test(text), text);
+	});
+
 	await test('clip-path → mask first, the frame\'s fill moved under it; vertical text turned 90°', async () => {
 		const env = makeFigma();
 		const data = textFile([{s: 'vertical', ff: 'Inter', vt: true, x: 500, y: 20, w: 24, h: 90}]);
@@ -620,6 +756,76 @@ function synthetic() {
 		assert.strictEqual(slanted.children[1].fills[0].type, 'SOLID');
 		assert.deepStrictEqual(vert.relativeTransform, [[0, -1, 524], [1, 0, 20]], 'turned clockwise into its box');
 		assert(!/clip-path not applied/.test(text), text);
+	});
+
+	await test('box-shadow on a frame without a background → on a stand-in of the box, masked to the outside', async () => {
+		const env = makeFigma();
+		const data = textFile([]);
+		const shadow = {x: 2, y: 2, blur: 10, spread: 0, c: [0.78, 0.76, 0.76, 1]};
+		const card = (n, bg, sh, clip) => ({t: 'f', n, x: 20, y: 20, w: 445, h: 335, bg, br: {tl: 20, tr: 20, br: 20, bl: 20}, sh, clip, ch: [
+			{t: 'f', n: n + ' panel', x: 20, y: 231, w: 445, h: 124, bg: [1, 1, 1, 1], br: {tl: 20, tr: 20, br: 20, bl: 20}, ch: []},
+		]});
+		const turned = Object.assign(card('turned', null, [shadow], true), {op: 0.5, tf: {a: 0, b: 1, c: -1, d: 0, e: 0, f: 0, ox: 222.5, oy: 167.5}});
+		data.captures[0].root.ch.push(card('card', null, [shadow]), card('filled', [1, 1, 1, 1], [shadow]),
+			card('dropped', null, [Object.assign({f: 1}, shadow)]), card('clipping', null, [shadow], true), turned);
+		const text = await importAll(env, await load(env, [data]), null, 'single');
+		const frames = {};
+		(function w(n) { if (n.type === 'FRAME' && !frames[n.name]) frames[n.name] = n; (n.children || []).forEach(w); })(env.figma.root.children[0]);
+		const kinds = f => f.children.map(c => c.type + ' ' + c.name + (c.isMask ? ' (mask)' : ''));
+		const {card: c, filled, dropped, clipping} = frames;
+		assert.deepStrictEqual(kinds(c), ['FRAME box-shadow', 'FRAME card panel'], 'the stand-in first, under the content');
+		assert.deepStrictEqual([c.fills.length, (c.effects || []).length], [0, 0], 'the card itself casts nothing');
+		const holder = c.children[0];
+		assert.deepStrictEqual(kinds(holder), ['VECTOR outside the box (mask)', 'RECT box'], 'mask, then the box with the shadow');
+		assert.deepStrictEqual([holder.x, holder.y, holder.width, holder.height, holder.fills.length, holder.clipsContent], [0, 0, 445, 335, 0, false], 'the box\'s own size, not a bigger block');
+		const mask = holder.children[0];
+		assert.deepStrictEqual([mask.x, mask.y], [-23, -23], 'the mask reaches out past it: room for offset + blur');
+		const box = holder.children[1];
+		assert.deepStrictEqual([box.x, box.y, box.width, box.height, box.topLeftRadius], [0, 0, 445, 335, 20]);
+		assert.deepStrictEqual(box.effects.map(e => [e.type, e.radius, e.offset.x]), [['DROP_SHADOW', 10, 2]]);
+		assert.deepStrictEqual([kinds(filled).length, filled.effects[0].type], [1, 'DROP_SHADOW'], 'a frame with a background casts its own shadow');
+		assert.deepStrictEqual([kinds(dropped).length, dropped.effects[0].type], [1, 'DROP_SHADOW'], 'filter: drop-shadow() follows the content');
+		const siblings = clipping.parent.children;
+		assert.strictEqual(siblings[siblings.indexOf(clipping) - 1].name, 'box-shadow', 'a clipping frame gets it next to it, just under');
+		assert.deepStrictEqual([siblings[siblings.indexOf(clipping) - 1].x, kinds(clipping).length], [clipping.x, 1]);
+		const t = frames.turned, ts = t.parent.children[t.parent.children.indexOf(t) - 1];
+		assert.deepStrictEqual([ts.name, ts.opacity], ['box-shadow', 0.5], 'next to a clipping frame: its opacity');
+		assert.deepStrictEqual(ts.relativeTransform, t.relativeTransform, 'and its rotation');
+		assert(/d="M0 0 H491 V381 H0 Z M43 23 H448 A20 20 0 0 1 468 43 V338 A20 20 0 0 1 448 358 H43 A20 20 0 0 1 23 338 V43 A20 20 0 0 1 43 23 Z"/.test(holder.children[0].svg),
+			'a hole of the rounded box in the mask: ' + holder.children[0].svg);
+		assert(!/box-shadow not applied/.test(text), text);
+	});
+
+	await test('images stored once per file (images + img ids) → the same image on every page, uploaded once', async () => {
+		const env = makeFigma();
+		const data = textFile([]);
+		data.images = {a1: PNG_1PX};
+		const page = data.captures[0];
+		page.root.ch.push(
+			{t: 'img', n: 'photo', x: 10, y: 10, w: 40, h: 30, img: 'a1', fit: 'cover'},
+			{t: 'f', n: 'hero', x: 0, y: 100, w: 200, h: 80, bg: null, layers: [{type: 'image', img: 'a1', fit: 'cover'}], ch: []},
+			{t: 'img', n: 'lost', x: 60, y: 10, w: 40, h: 30, img: 'zz', fit: 'cover'});
+		data.captures.push(Object.assign({}, page, {name: 'Second', root: JSON.parse(JSON.stringify(page.root))}));
+		const text = await importAll(env, await load(env, [data]), null, 'single');
+		const named = {};
+		(function w(n) { (named[n.name] = named[n.name] || []).push(n); (n.children || []).forEach(w); })(env.figma.root.children[0]);
+		assert.deepStrictEqual(named.photo.map(r => r.fills[0].type), ['IMAGE', 'IMAGE'], 'on both pages');
+		assert.strictEqual(named.hero[0].fills[0].type, 'IMAGE', 'an image layer too');
+		assert.strictEqual(env.counts.IMAGE, 1, 'uploaded once');
+		assert.strictEqual(named['lost (no data)'].length, 2, 'an unknown id → a placeholder');
+		assert(/image without data: lost/.test(text), text);
+	});
+
+	await test('box-shadow on a pill (radius 999px) → the mask\'s corners scaled down like CSS', async () => {
+		const env = makeFigma();
+		const data = textFile([]);
+		data.captures[0].root.ch.push({t: 'f', n: 'pill', x: 20, y: 20, w: 100, h: 40, bg: null, br: {tl: 999, tr: 999, br: 999, bl: 999},
+			sh: [{x: 0, y: 0, blur: 4, spread: 0, c: [0, 0, 0, 0.2]}], ch: []});
+		await importAll(env, await load(env, [data]), null, 'single');
+		let pill;
+		(function w(n) { if (n.name === 'pill') pill = n; (n.children || []).forEach(w); })(env.figma.root.children[0]);
+		const svg = pill.children[0].children[0].svg;
+		assert(svg.includes('d="M0 0 H118 V58 H0 Z M29 9 H89 A20 20 0 0 1 109 29 V29 A20 20 0 0 1 89 49 H29 A20 20 0 0 1 9 29 V29 A20 20 0 0 1 29 9 Z"'), svg);
 	});
 
 	await test('"Use Auto Layout": verified flex containers become Auto Layout frames; absolute children stay put', async () => {

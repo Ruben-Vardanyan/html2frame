@@ -64,6 +64,18 @@
 					</div>
 				</div>
 				<div class="field">
+					<label for="f-long">Placeholder longer than the field</label>
+					<input id="f-long" type="search" placeholder="Search by name, ingredient, cuisine, author or cooking time (e.g. 30 min)">
+				</div>
+				<div class="field">
+					<label for="f-file">File upload (native button)</label>
+					<input id="f-file" type="file">
+				</div>
+				<div class="field">
+					<label for="f-file2">File upload (styled ::file-selector-button)</label>
+					<input id="f-file2" class="file-styled" type="file" multiple>
+				</div>
+				<div class="field">
 					<label for="f-disabled">Disabled</label>
 					<input id="f-disabled" type="text" value="Cannot edit this" disabled>
 				</div>
@@ -113,6 +125,15 @@ It keeps its line breaks.</textarea>
 					<div class="checks">
 						<label><input class="toggle" type="checkbox" checked> On</label>
 						<label><input class="toggle" type="checkbox"> Off</label>
+					</div>
+				</div>
+				<div class="field">
+					<span class="label">Custom checkbox and radio (mark from ::after / ::before)</span>
+					<div class="checks">
+						<label><input class="tick" type="checkbox" checked> Ticked</label>
+						<label><input class="tick" type="checkbox"> Not ticked</label>
+						<label><input class="dot" type="radio" name="size" checked> Small</label>
+						<label><input class="dot" type="radio" name="size"> Large</label>
 					</div>
 				</div>
 				<div class="field">

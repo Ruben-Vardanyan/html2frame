@@ -13,6 +13,7 @@ Colours are `[r, g, b, a]` with every channel 0–1.
 	"version": 1,
 	"project": "InsureNow",
 	"capturedAt": "2026-10-07T18:00:00Z",
+	"images": {"3f2a9c01d4e5b6a7": "iVBORw0KGgo…"},
 	"captures": [
 		{
 			"name": "Home",
@@ -32,6 +33,13 @@ Colours are `[r, g, b, a]` with every channel 0–1.
 `variant` is the variant name, or `null` when the project has none. `variantParts` is present only when the
 variants come from `dimensions` (D15): one option per dimension; the plugin then offers one list per dimension.
 
+`images` holds each raster image of the file once (base64 PNG, JPEG or GIF), under an id (the first 16 hex digits
+of its SHA-1). `img` nodes and `{type:"image"}` layers name theirs with `img: id` instead of carrying `data`. The
+same photo on every page made a 34-page site 302 MB (27 MB of distinct images); with a second screen size the file
+became too large for one string ("Invalid string length"). Capture writes the file piece by piece for the same
+reason. The plugin still reads `data` inline (older files, the prototype); an unknown id gives a "(no data)"
+placeholder.
+
 ### Prototype
 
 `{"pages": [{name, group, url, width, height, root}]}`, with no `screen` or `variant`. The v1 plugin must
@@ -46,24 +54,37 @@ accept both formats; a prototype file is treated as a single "Desktop" screen.
 | `n` | name (`tag.firstClass`) |
 | `x, y, w, h` | border box |
 | `bg` | background colour or `null` |
-| `layers` | *(v1)* extra fills, Figma order (last = top): `{type:"gradient", angle, stops:[{c, p}]}` (linear), `{type:"radial", cx, cy, rx, ry, stops}` (centre and radii in px from the box's top-left corner) or `{type:"image", src or data, fit:"cover"\|"contain"}`. Stop positions `p` run 0–1 along the gradient line (linear: `\|w·sin θ\| + \|h·cos θ\|` px long, as in CSS) or along the horizontal radius. Px stops and two-position stops (`red 0 96px`) are converted, a fully transparent stop takes its neighbour's colour, stops outside 0–1 are cut. Conic and repeating gradients are not read. |
+| `layers` | *(v1)* extra fills, Figma order (last = top): `{type:"gradient", angle, stops:[{c, p}]}` (linear), `{type:"radial", cx, cy, rx, ry, stops}` (centre and radii in px from the box's top-left corner) or `{type:"image", src, fit:"cover"\|"contain"}` (`src` from the extractor; in the file `img`, an id in `images`, or `data` in older files). Stop positions `p` run 0–1 along the gradient line (linear: `\|w·sin θ\| + \|h·cos θ\|` px long, as in CSS) or along the horizontal radius. Px stops and two-position stops (`red 0 96px`) are converted, a fully transparent stop takes its neighbour's colour, stops outside 0–1 are cut. Conic and repeating gradients are not read. |
 | `br` | corner radii `{tl, tr, br, bl}` |
 | `bd` | border `{w:[top, right, bottom, left], c, dash}` or `null` (one colour; per-side weights) |
-| `sh` | drop shadows `[{x, y, blur, spread, c}]` |
+| `sh` | drop shadows `[{x, y, blur, spread, c, f?}]`. A `box-shadow` follows the box and shows only outside it: on a frame with no fill the plugin moves it to a stand-in (a `box-shadow` frame of the box's own size: the box with the shadow, under a mask of everything but the box, both reaching out past it), first inside the frame, or just under it in the parent when the frame clips (then with the frame's opacity and transform). `f: 1` marks a `filter: drop-shadow()`, which follows the content. |
 | `op` | opacity 0–1 |
 | `clip` | clip children (CSS overflow ≠ visible) |
+| `scr` | *(optional)* a scroll area with more inside than shows (`overflow: auto/scroll`): `"x"`, `"y"` or `"xy"`. Cut as the browser shows it (`clip`); the plugin sets the frame's `overflowDirection`, so it scrolls in prototypes. |
 | `ch` | children (frames, text, svg, img), in paint order (last = top). DOM order, except that a child is moved above the siblings it overlaps when CSS paints it later (stacking layers: negative `z-index`, normal flow, positioned with `z-index` auto/0, positive `z-index`). Overlap counts what a child paints outside its own box; a child without a stacking context of its own (a plain wrapper, a `position: relative` cover) paints its body at its own layer and its positioned descendants at theirs. Against a sibling it ranks as the highest of those that overlap that sibling: a fixed drawer inside a static header goes over the page; a cover goes over an avatar only where its `z-index` button is. When its body must be under a sibling but such a descendant over it (overlapping by more than 3 px), the descendant moves out next to it (`abs`), inside a fill-less frame named `clip` when something on the way clipped it. An element that makes no node of its own (e.g. a fixed menu wrapper with height 0 and `z-index: 6`) passes its layer to the nodes it painted. |
 | `tf` | *(optional)* CSS transform `{a, b, c, d, e, f, ox, oy}`: `matrix(a, b, c, d, e, f)` around the origin `ox, oy` (px from the node's top-left). The node's box and its children are measured **untransformed**; the plugin applies rotation, scale, mirroring (`scaleX(-1)`) and translate (skew dropped). Also on `svg` and `img`. |
 | `blur` | *(optional)* `filter: blur()` in px (Figma layer blur ≈ 2×). Also on `svg` and `img`. |
 | `bblur` | *(optional)* `backdrop-filter: blur()` in px (Figma background blur ≈ 2×) |
 | `blend` | *(optional)* CSS `mix-blend-mode` (`multiply`, `screen`, …). Also on `svg` and `img`. |
 
-| `cp` | *(optional)* CSS `clip-path` as an SVG path in the node's own pixels (from `polygon()`, `inset()`, `circle()`, `ellipse()`, `path()`). The plugin makes it a mask inside the frame and moves the frame's fill and border under it. |
+| `cp` | *(optional)* CSS `clip-path` as an SVG path in the node's own pixels (from `polygon()`, `inset()`, `circle()`, `ellipse()`, `path()`), or from the legacy `clip: rect()` when it cuts part of an absolutely positioned box. The plugin makes it a mask inside the frame and moves the frame's fill and border under it. |
 
 | `lay` | *(optional)* Figma Auto Layout for a flex container, recorded only when it reproduces the measured positions: `{d: "H"\|"V", gap, p: [top, right, bottom, left], main: "MIN"\|"CENTER"\|"MAX"\|"SPACE_BETWEEN", cross: "MIN"\|"CENTER"\|"MAX"}`. Padding includes the border. Used when the plugin's "Use Auto Layout" is on. Left out when paint order had to move one of its in-flow children (Figma lays them out in list order). |
 | `abs` | *(optional, any node)* out of the flow (CSS `position: absolute/fixed`, background icons): absolute inside an Auto Layout parent |
 
-`filter: drop-shadow()` is added to `sh` (spread 0).
+`filter: drop-shadow()` is added to `sh` (spread 0, `f: 1`).
+
+A `position: fixed` frame that covers the whole window (a modal's dim backdrop) is stretched down to the page's
+height, so it covers the full-page frame as it covers the window wherever you scroll. Its content stays where the
+window showed it, and it gets no `lay` (Auto Layout would re-centre a modal in the taller box).
+
+Not drawn at all: anything clipped down to nothing, the "visually hidden" pattern (`clip: rect(0 0 0 0)` on an absolutely positioned element, `clip-path: inset(50%)`), as the browser shows nothing although the element has a size. A `display: contents` element has no box of its own; its children are captured.
+
+The top layer (a `<dialog>` opened with `showModal()`, an open popover, a fullscreen element) comes last in the page's `ch`, above everything whatever the z-index, each after its `::backdrop` (a frame named `backdrop` over the whole page, with its colour, opacity and backdrop blur; left out when transparent). A `<dialog open>` without `showModal()` is not top layer.
+
+`::before` / `::after` become ordinary spans. Their text is the quoted strings of `content` up to a `/` (the alt
+text after it, as in Font Awesome's `content: "\f0fe" / ""`, is dropped). Content with `counter()`, `attr()` or
+`url()` gives no text. On an `<input>` (Chrome draws them only on a checkbox or radio with `appearance: none`: a custom ✓ or dot) the span goes right after the input, absolutely placed where the browser draws the pseudo-element.
 
 The extractor also turns list markers (`::marker`: bullets, numbers, the ▼/▶ of `<summary>`) into ordinary text
 nodes, skips content the browser does not render (a closed `<details>`, `content-visibility: hidden`), and
@@ -77,8 +98,8 @@ splits text that flows over CSS columns into one text node per column.
 `. |
 | `x, y, w, h` | `y` is already corrected for line height |
 | `ff, fw, fs, it` | font family (first in the stack), weight, size, italic |
-| `ffs` | *(v1)* the whole CSS font stack, e.g. `["Noto Sans Armenian", "Inter", "sans-serif"]`. The plugin picks a font per script inside the layer (Armenian, Georgian letters get a font made for them; other letters the first ordinary font), from the fonts installed in Figma. Without it, `[ff]`. A generic family is preceded by the installed font the browser drew it with (`["Arial", "sans-serif"]` on Windows), so Figma gets the same letter widths. |
-| `runs` | *(optional)* ranges styled unlike the layer (a link, bold words): `[{s, e, ff, ffs, fw, it, fs, c, td, tc, ls}]`, `s`–`e` in UTF-16 positions of the text, each with its full style. |
+| `ffs` | *(v1)* the whole CSS font stack, e.g. `["Noto Sans Armenian", "Inter", "sans-serif"]`. The plugin picks a font per script inside the layer (Armenian, Georgian letters get a font made for them; other letters the first ordinary font), from the fonts installed in Figma. Without it, `[ff]`. A generic family is preceded by the installed font the browser drew it with (`["Arial", "sans-serif"]` on Windows), so Figma gets the same letter widths. The stack starts at the font the browser really used (capture.js asks it through DevTools `CSS.getPlatformFontsForNode`): families before it were not used (not installed, not loaded, or a generic the browser does not know, like `ui-monospace` on Windows, which draws Consolas). |
+| `runs` | *(optional)* ranges styled unlike the layer (a link, bold words): `[{s, e, ff, ffs, fw, it, fs, c, td, tc, ls, g?}]`, `s`–`e` in UTF-16 positions of the text, each with its full style. `g: 1`: symbols the text's font lacks (★ in DM Sans; not emoji, which stay in the text's font so Figma draws its own colour emoji), with the font the browser drew them with first in `ffs` (Segoe UI Symbol); on one-line text the plugin spaces them so the line is as wide as in the browser (at most ¼ of the font size per symbol), which keeps a coloured row of stars cut over a grey one aligned. |
 | `ind` | *(optional)* the text starts mid-line (after a link, an icon or a badge) and wraps: `x` is the left edge of the later lines, and the first line starts `ind` px further right (Figma paragraph indent). |
 | `nw` | *(optional)* `true`: every line ends at a `<br>` or `\n`, none wraps. The plugin gives it an auto-width box, so Figma (whose fonts can be slightly wider) cannot add a break. |
 | `fill`, `fbg`, `fb` | *(optional)* gradient text (`background-clip: text`): `fill` = the element's background layers (as `layers`), `fbg` its background colour, `fb` = `{x, y, w, h}` the element's box they are laid out on. They replace `c`, which is then transparent. |
@@ -90,8 +111,10 @@ splits text that flows over CSS columns into one text node per column.
 | `tc` | `none` \| `upper` \| `lower` \| `title` |
 | `td` | `none` \| `underline` \| `strike` |
 | `al` | `left` \| `center` \| `right` |
-| `multi` | more than one line → fixed width, auto height. The plugin makes the box 3% wider than measured (at least 2 px, growing away from the alignment edge). With `nw`: auto width. |
-| `fixed` | form-control text → fixed width box (starts after the field's padding and `text-indent`, e.g. room for a search icon) |
+| `multi` | more than one line → fixed width, auto height. The plugin makes the box 3% wider than measured (at least 2 px, growing away from the alignment edge), or `aw` wide when that is more. With `nw`: auto width. |
+| `ink` | *(optional)* one line made only of fallback symbols (`g` runs, e.g. a row of ★): `[top, bottom]` of their ink in page px, where the browser drew it (on the baseline of the text's own font). Figma lays the line out by the symbols' font and its star may be another size, so the plugin moves the layer until the ink's centre (its `absoluteRenderBounds`) matches. |
+| `aw` | *(optional)* wrapping text: the width its lines wrap at (the content box of the block it flows in), so Figma breaks them at the same words. Left out beside a float (lines starting at different places) and with `text-wrap: balance/pretty`. |
+| `fixed` | form-control text → fixed width box (starts after the field's padding and `text-indent`, e.g. room for a search icon). A textarea (`multi`) wraps in it; a one-line field never wraps: text longer than the box (a long placeholder) is cut off at its edge, inside a fill-less clipping frame named `clip`, as the browser does. A file input (`type=file`) gets a frame named `file button` (the browser's grey while `::file-selector-button` keeps its default look, else its own CSS) with its label, then the status text ("No file chosen", a name, "2 files") as one-line field text; the words are the browser's own (read by capture.js through DevTools, so in its language), else English |
 
 ### `t: "svg"`: vector
 
@@ -103,8 +126,8 @@ resolved (no `currentColor`, no classes). A dashed stroke drawn with a `stroke-d
 | Field | Meaning |
 |---|---|
 | prototype | `{n, x, y, w, h, data (base64), fit}` |
-| v1 capture output | `{n, x, y, w, h, src, fit, r?, tf?, blur?, blend?}`. `canvas`, `video`, `iframe`, `object` and `embed` also become `img` nodes: the extractor marks them (`shot`) and capture fills `data` with a picture of the element (fixed and sticky elements hidden meanwhile). Capture resolves `src` into either `data` (raster, base64), or a `t:"svg"` node when the file is SVG. |
-| `fit` | CSS `object-fit`: `contain` → Figma `FIT`, otherwise `FILL` |
+| v1 capture output | `{n, x, y, w, h, src, fit, pos?, nw?, nh?, r?, tf?, blur?, blend?}` (`pos`: CSS `object-position` when not centred, e.g. `"0% 0%"`; `nw, nh`: the natural size, `naturalWidth/Height`). `canvas`, `video`, `iframe`, `object` and `embed` also become `img` nodes: the extractor marks them (`shot`) and capture fills `data` with a picture of the element (fixed and sticky elements hidden meanwhile). Capture resolves `src` into either `img` (an id in the file's `images`; raster), or a `t:"svg"` node when the file is SVG: drawn into the box as the browser does (`object-fit` and `object-position` give its area, then the SVG's own `preserveAspectRatio`), baked into one transform with viewBox `0 0 w h`; such an `svg` keeps `fit` (and `r`), and the plugin cuts it to its box with those corners. An inline `<svg>` has no `fit` and is not cut. The `data` named in the rows below goes into `images` the same way. |
+| `fit` | CSS `object-fit`. Centred `cover` → Figma `FILL`, centred `contain` → `FIT`, as is `fill` at the image's own ratio and any image without `nw, nh` (canvas and video pictures, icons, drawn at the box's size). Otherwise (`fill` on another shape, `none`, `scale-down`, or a `pos`) the plugin works out the image's own area as CSS does and stretches the whole image over it (`CROP` with an identity `imageTransform`); an area other than the box goes in a frame of the box that cuts it, with the image's corners. Borders and padding on an `<img>` are not drawn: the image takes the whole box. |
 | 3D | A CSS 3D scene cannot be rebuilt from flat layers: a transform with perspective, `preserve-3d` with turned children, or a turned child under `perspective`. Its outermost element becomes `{n: "3d div.ring", x, y, w, h, data, fit, abs}`: a picture of only that element and its content, on a transparent background. Capture hides everything else; ancestors are drawn untransformed and opaque, since their frames carry that. Animations elsewhere are switched off, but a scene's own are paused where they are, so a spinning ring is caught mid-turn, as people see it (at its start position it can look quite different). The box covers everything inside as drawn, plus room for shadows. |
 | icons | Icon-font glyphs (all Private Use Area characters, or a font named like an icon font: Font Awesome, Material Icons…) are drawn by the extractor at 4× in their colour: `{n: "icon fa-palette", x, y, w, h, data, fit}`. Figma rarely has these fonts. |
 

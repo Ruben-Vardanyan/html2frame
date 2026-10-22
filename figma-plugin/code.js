@@ -102,12 +102,14 @@ async function pickFont(stack, fw, it, script) {
 	const key = stack.join(',') + '|' + fw + '|' + it + '|' + (script || '');
 	if (fontCache[key]) return fontCache[key];
 	const sc = script ? SCRIPTS[script] : null;
-	const families = [];
+	// the page's own families first, in its order; only then what its generic names may stand for (a guess like
+	// Roboto Mono for monospace must not win over a Consolas the page names further on)
+	const families = [], guesses = [];
 	let wanted = null; // the family the page asked for, to report when it is missing
 	for (const f of stack) {
 		const g = GENERIC[f.toLowerCase()];
 		if (g) {
-			if (!sc) families.push(...g);
+			if (!sc) guesses.push(...g);
 			continue;
 		}
 		if (sc ? sc.family.test(f) : !SCRIPT_FAMILY.test(f)) {
@@ -115,7 +117,7 @@ async function pickFont(stack, fw, it, script) {
 			if (!wanted) wanted = f;
 		}
 	}
-	families.push(...(sc ? sc.fallbacks : ['Inter']));
+	families.push(...guesses, ...(sc ? sc.fallbacks : ['Inter']));
 	let chosen = null;
 	for (const f of [...new Set(families)]) {
 		if ((chosen = await loadFamily(f, fw, it))) break;
@@ -215,6 +217,38 @@ function applyRuns(t, n, warn) {
 	}
 }
 
+// Symbols in a fallback font (runs with g: ★ the page font lacks): Figma may not have that font, or draws it a little
+// wider or narrower. They are spaced so the line is as wide as in the browser: a coloured row of stars cut over a grey
+// one still lines up, and the gap after it stays. At most a quarter of the font size per symbol; letters untouched.
+function matchSymbols(t, n, warn) {
+	const g = (n.runs || []).filter(r => r.g && r.e > r.s);
+	const diff = n.w - t.width;
+	if (!g.length || Math.abs(diff) < 0.5) return;
+	const count = g.reduce((a, r) => a + [...n.s.slice(r.s, r.e)].length, 0);
+	const per = Math.max(-0.25 * n.fs, Math.min(0.25 * n.fs, diff / count));
+	try {
+		for (const r of g) t.setRangeLetterSpacing(r.s, Math.min(r.e, n.s.length), {value: (r.ls || 0) + per, unit: 'PIXELS'});
+	} catch (e) {
+		warn('symbol spacing not applied on "' + t.name + '": ' + (e && e.message ? e.message : e));
+	}
+}
+
+// A line of fallback symbols only (n.ink: where the browser drew their ink, page px): Figma lays it out by the
+// symbols' font, whose glyph may also be another size, so the stars sit higher or lower than the date beside them.
+// The layer moves so the ink's centre is where the browser had it (what Figma really drew: absoluteRenderBounds).
+function centreInk(t, n) {
+	try {
+		const rb = t.absoluteRenderBounds, at = t.absoluteTransform;
+		if (!rb || !at || !(rb.height > 0)) return;
+		const have = rb.y - at[1][2] + rb.height / 2;
+		const want = (n.ink[0] + n.ink[1]) / 2 - n.y;
+		const d = want - have;
+		if (Math.abs(d) > 0.25 && Math.abs(d) < (n.lh || n.h || n.fs)) t.y += d;
+	} catch (e) {
+		// no render bounds (older Figma): left where the line box puts it
+	}
+}
+
 async function preloadFonts(node) {
 	if (node.t === 't') await textFonts(node);
 	for (const c of node.ch || []) await preloadFonts(c);
@@ -282,6 +316,31 @@ function imagePaint(data, fit) {
 	return {type: 'IMAGE', imageHash: imageHash(data), scaleMode: fit === 'contain' ? 'FIT' : 'FILL'};
 }
 
+// the whole image stretched over the node (Figma's "Crop" mode, nothing cropped)
+function stretchedPaint(data) {
+	return {type: 'IMAGE', imageHash: imageHash(data), scaleMode: 'CROP', imageTransform: [[1, 0, 0], [0, 1, 0]]};
+}
+
+// The area an <img> of natural size nw×nh takes in its w×h box, by CSS object-fit and object-position (pos),
+// in px from the box's top-left corner; null when Figma's FILL (centred cover) or FIT (centred contain) already
+// shows it, or the natural size is unknown (canvas and video pictures, icons: drawn at the box's size).
+function objectArea(n) {
+	const w = n.w, h = n.h, iw = n.nw, ih = n.nh;
+	if (!(iw > 0 && ih > 0 && w > 0 && h > 0)) return null;
+	const fit = n.fit || 'fill', ratio = iw / ih;
+	if (!n.pos && (fit === 'cover' || fit === 'contain')) return null;
+	if (fit === 'fill') return Math.abs(ratio - w / h) < ratio * 0.005 ? null : {x: 0, y: 0, w, h};
+	const fitIn = big => ((big ? ratio > w / h : ratio < w / h) ? [h * ratio, h] : [w, w / ratio]);
+	let ow, oh;
+	if (fit === 'cover') [ow, oh] = fitIn(true);
+	else if (fit === 'none') [ow, oh] = [iw, ih];
+	else if (fit === 'scale-down') [ow, oh] = iw <= w && ih <= h ? [iw, ih] : fitIn(false);
+	else [ow, oh] = fitIn(false); // contain
+	const [px, py] = (n.pos || '50% 50%').split(/\s+/);
+	const place = (v, room) => (/%$/.test(v) ? parseFloat(v) / 100 * room : parseFloat(v) || 0);
+	return {x: place(px || '50%', w - ow), y: place(py || px || '50%', h - oh), w: ow, h: oh};
+}
+
 // background colour first (bottom), then the extra layers, already in Figma order (last = top)
 function framePaints(n, warn) {
 	return layerPaints(n.layers, n.bg, n.w, n.h, null, warn, n.n || 'frame');
@@ -347,9 +406,17 @@ function applyBox(f, n, warn) {
 		}
 		if (n.bd.dash) f.dashPattern = [4, 3];
 	}
-	if (n.sh && n.sh.length) f.effects = n.sh.map(shadowEffect);
+	if (n.sh && n.sh.length) f.effects = n.sh.filter(s => s.f || !shadowApart(f, n)).map(shadowEffect);
 	if (n.op !== undefined && n.op < 1) f.opacity = n.op;
 	f.clipsContent = !!n.clip;
+	// a scroll area (n.scr): scrolls in prototypes, as in the browser
+	if (n.scr && n.clip) {
+		try {
+			f.overflowDirection = {x: 'HORIZONTAL', y: 'VERTICAL', xy: 'BOTH'}[n.scr] || 'NONE';
+		} catch (e) {
+			warn('scrolling not set on ' + (n.n || 'frame') + ': ' + (e && e.message ? e.message : e));
+		}
+	}
 }
 
 // CSS transform (n.tf: matrix a b c d e f around origin ox oy, see extract.js) on a node already built at its
@@ -456,6 +523,76 @@ function clipFrame(f, n, warn) {
 	}
 }
 
+// CSS paints a box-shadow from the box, outside it only. Figma casts a frame's shadow from what the frame
+// paints, so a frame with no fill of its own (a card whose white is a child panel) got shadows around its
+// children, inside the card: in the corners of a rounded panel under a square picture. Such a frame's box
+// shadows go on a stand-in instead (shadow from filter: drop-shadow(), f, does follow the content).
+function shadowApart(f, n) {
+	return !n.cp && !f.fills.length && !!n.sh && n.sh.some(s => !s.f);
+}
+
+// SVG path of a w×h box at (x, y) with corner radii r {tl, tr, br, bl}, scaled down like CSS when they overlap
+function roundedRect(x, y, w, h, r) {
+	const c = r || {};
+	let tl = c.tl || 0, tr = c.tr || 0, br = c.br || 0, bl = c.bl || 0;
+	const k = Math.min(1, w / (tl + tr || 1), w / (bl + br || 1), h / (tl + bl || 1), h / (tr + br || 1));
+	const q = v => Math.round(v * k * 100) / 100;
+	tl = q(tl); tr = q(tr); br = q(br); bl = q(bl);
+	const a = (rr, ex, ey) => (rr ? 'A' + rr + ' ' + rr + ' 0 0 1 ' + ex + ' ' + ey : 'L' + ex + ' ' + ey);
+	return 'M' + (x + tl) + ' ' + y + ' H' + (x + w - tr) + ' ' + a(tr, x + w, y + tr) + ' V' + (y + h - br) + ' ' + a(br, x + w - br, y + h)
+		+ ' H' + (x + bl) + ' ' + a(bl, x, y + h - bl) + ' V' + (y + tl) + ' ' + a(tl, x + tl, y) + ' Z';
+}
+
+// The stand-in: a frame "box-shadow" holding a rectangle of the box with the shadows, under a mask that is
+// everything around the box but the box itself (so nothing shows inside, as in CSS). Inside the frame, first,
+// or next to it in the parent when the frame clips (it would cut the shadow off).
+function boxShadow(f, n, parent, warn) {
+	try {
+		const sh = n.sh.filter(s => !s.f);
+		const w = Math.max(n.w, 0.01), h = Math.max(n.h, 0.01);
+		const m = Math.ceil(Math.max(...sh.map(s => Math.max(Math.abs(s.x || 0), Math.abs(s.y || 0)) + 2 * (s.blur || 0) + Math.max(0, s.spread || 0)))) + 1;
+		const W = w + 2 * m, H = h + 2 * m;
+		// the box's own size: the mask and the shadow reach out past it (no clipping), so its outline in Figma is
+		// the element's, not a bigger block
+		const holder = figma.createFrame();
+		holder.name = 'box-shadow';
+		holder.fills = [];
+		holder.clipsContent = false;
+		holder.resize(w, h);
+		const svg = figma.createNodeFromSvg('<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '"><path fill-rule="evenodd" d="M0 0 H' + W + ' V' + H + ' H0 Z ' + roundedRect(m, m, w, h, n.br) + '" fill="#000000"/></svg>');
+		holder.appendChild(svg);
+		const mask = figma.flatten([svg], holder, 0);
+		mask.name = 'outside the box';
+		mask.x = -m;
+		mask.y = -m;
+		mask.isMask = true;
+		const look = figma.createRectangle();
+		look.name = 'box';
+		look.resize(w, h);
+		look.x = 0;
+		look.y = 0;
+		// the shadow's colour: its edge, where the mask antialiases, blends into the shadow
+		look.fills = [solid(sh[0].c)];
+		setRadius(look, n.br);
+		look.effects = sh.map(shadowEffect);
+		holder.appendChild(look);
+		if (n.clip) {
+			// next to the frame, so it gets what the frame would have given it: opacity, transform (same box)
+			holder.x = f.x;
+			holder.y = f.y;
+			if (n.op !== undefined && n.op < 1) holder.opacity = n.op;
+			parent.appendChild(holder);
+			applyTransform(holder, n, f.x, f.y, warn);
+		} else {
+			holder.x = 0;
+			holder.y = 0;
+			f.appendChild(holder);
+		}
+	} catch (e) {
+		warn('box-shadow not applied on ' + (n.n || 'frame') + ': ' + (e && e.message ? e.message : e));
+	}
+}
+
 function placeholder(parent, n, ox, oy, name) {
 	const r = figma.createRectangle();
 	r.name = name;
@@ -479,6 +616,7 @@ async function build(parent, n, ox, oy, warn) {
 		applyBox(f, n, warn);
 		applyEffects(f, n, warn);
 		if (n.cp) clipFrame(f, n, warn);
+		if (shadowApart(f, n)) boxShadow(f, n, parent, warn);
 		parent.appendChild(f);
 		const made = new Map(); // Figma node -> its captured node
 		for (const c of n.ch || []) {
@@ -508,27 +646,49 @@ async function build(parent, n, ox, oy, warn) {
 		t.name = n.s.length > 40 ? n.s.slice(0, 40) + '…' : n.s;
 		applyRuns(t, n, warn);
 		if (n.ind) t.paragraphIndent = n.ind; // the first line starts mid-line on the page
-		parent.appendChild(t);
-		if (n.fixed) {
+		// one-line field (input, select): never wraps. Text longer than the field is cut off at its inner edge, as
+		// the browser does (a long placeholder): inside a clipping frame of that box, its start showing.
+		let host = parent;
+		if (n.fixed && !n.multi) {
+			t.textAutoResize = 'WIDTH_AND_HEIGHT';
+			if (t.width > n.w + 0.5) {
+				host = figma.createFrame();
+				host.name = 'clip';
+				host.fills = [];
+				host.clipsContent = true;
+				host.resize(Math.max(n.w, 1), Math.max(n.h, t.height, 1));
+				host.x = n.x - ox;
+				host.y = n.y - oy;
+				parent.appendChild(host);
+				ox = n.x;
+				oy = n.y;
+			}
+		}
+		const clipped = host !== parent;
+		host.appendChild(t);
+		if (n.fixed && n.multi) {
 			t.textAutoResize = 'HEIGHT';
 			t.resize(Math.max(n.w, 1), Math.max(n.h, 1));
 			t.x = n.x - ox;
 		} else if (n.multi && !n.nw) {
 			// wrapping text: a little extra width, since Figma's fonts can be slightly wider than the browser's and
 			// a line that just fits would wrap; the box grows away from the alignment edge
-			const extra = Math.max(2, n.w * 0.03);
+			// a line that just fits would wrap; with aw (the width the browser wrapped at) the same words break
+			const w = Math.max(n.w + Math.max(2, n.w * 0.03), n.aw || 0);
 			t.textAutoResize = 'HEIGHT';
-			t.resize(Math.max(n.w + extra, 1), Math.max(n.h, 1));
-			t.x = n.x - ox - (n.al === 'center' ? extra / 2 : n.al === 'right' ? extra : 0);
+			t.resize(Math.max(w, 1), Math.max(n.h, 1));
+			t.x = n.x - ox - (n.al === 'center' ? (w - n.w) / 2 : n.al === 'right' ? w - n.w : 0);
 		} else {
 			// one line, or lines that all end at a line break (nw): no wrapping at all
 			t.textAutoResize = 'WIDTH_AND_HEIGHT';
+			if (!n.multi && !clipped) matchSymbols(t, n, warn);
 			let x = n.x;
-			if (n.al === 'center') x = n.x + (n.w - t.width) / 2;
-			else if (n.al === 'right') x = n.x + n.w - t.width;
+			if (!clipped && n.al === 'center') x = n.x + (n.w - t.width) / 2;
+			else if (!clipped && n.al === 'right') x = n.x + n.w - t.width;
 			t.x = x - ox;
 		}
 		t.y = n.y - oy;
+		if (n.ink && !n.multi) centreInk(t, n);
 		// gradient text (background-clip: text): the element's background, laid out on its box (fb)
 		if (n.fill && n.fill.length) {
 			const fb = n.fb || {x: n.x, y: n.y, w: n.w, h: n.h};
@@ -539,7 +699,7 @@ async function build(parent, n, ox, oy, warn) {
 		// vertical writing: the line is built horizontally, then turned 90° clockwise into its box
 		// (top-right corner = the start of the line); every glyph turns, CJK included
 		if (n.vt) t.relativeTransform = [[0, -1, n.x - ox + n.w], [1, 0, n.y - oy]];
-		return t;
+		return clipped ? host : t;
 	}
 	if (n.t === 'svg') {
 		try {
@@ -549,7 +709,10 @@ async function build(parent, n, ox, oy, warn) {
 			v.y = n.y - oy;
 			if (n.w > 0 && n.h > 0) v.resize(n.w, n.h);
 			v.fills = [];
-			v.clipsContent = false;
+			// an SVG file shown by an <img> (fit set) is cut to its box, as the browser does (object-fit: cover
+			// crops), with the image's rounded corners; an inline <svg> keeps strokes that touch its edges
+			v.clipsContent = n.fit !== undefined;
+			if (n.fit !== undefined) setRadius(v, n.r);
 			applyEffects(v, n, warn);
 			parent.appendChild(v);
 			applyTransform(v, n, n.x - ox, n.y - oy, warn);
@@ -565,18 +728,41 @@ async function build(parent, n, ox, oy, warn) {
 			return placeholder(parent, n, ox, oy, (n.n || 'image') + ' (no data)');
 		}
 		try {
-			const paint = imagePaint(n.data, n.fit);
+			const area = objectArea(n);
 			const r = figma.createRectangle();
 			r.name = n.n || 'image';
-			r.resize(Math.max(n.w, 1), Math.max(n.h, 1));
-			r.x = n.x - ox;
-			r.y = n.y - oy;
-			r.fills = [paint];
-			setRadius(r, n.r);
-			applyEffects(r, n, warn);
-			parent.appendChild(r);
-			applyTransform(r, n, n.x - ox, n.y - oy, warn);
-			return r;
+			let node = r;
+			if (!area) {
+				r.resize(Math.max(n.w, 1), Math.max(n.h, 1));
+				r.fills = [imagePaint(n.data, n.fit)];
+				setRadius(r, n.r);
+			} else if (area.x === 0 && area.y === 0 && area.w === n.w && area.h === n.h) {
+				// object-fit: fill on another shape: stretched over the box
+				r.resize(Math.max(n.w, 1), Math.max(n.h, 1));
+				r.fills = [stretchedPaint(n.data)];
+				setRadius(r, n.r);
+			} else {
+				// its own area (bigger than the box for cover, none; smaller for contain, scale-down), stretched,
+				// in a frame of the box that cuts it, with the image's corners
+				node = figma.createFrame();
+				node.name = n.n || 'image';
+				node.fills = [];
+				node.clipsContent = true;
+				node.resize(Math.max(n.w, 1), Math.max(n.h, 1));
+				setRadius(node, n.r);
+				r.name = 'image';
+				r.resize(Math.max(area.w, 1), Math.max(area.h, 1));
+				r.x = area.x;
+				r.y = area.y;
+				r.fills = [stretchedPaint(n.data)];
+				node.appendChild(r);
+			}
+			node.x = n.x - ox;
+			node.y = n.y - oy;
+			applyEffects(node, n, warn);
+			parent.appendChild(node);
+			applyTransform(node, n, n.x - ox, n.y - oy, warn);
+			return node;
 		} catch (e) {
 			warn('image not imported: ' + (n.n || 'image') + ' (' + (e && e.message ? e.message : e) + ')');
 			return placeholder(parent, n, ox, oy, (n.n || 'image') + ' (not imported)');
@@ -587,6 +773,14 @@ async function build(parent, n, ox, oy, warn) {
 
 // ---- files ------------------------------------------------------------------------------------------
 
+// Images are stored once per file (images: {id: base64}); nodes and image layers name theirs with img: id.
+// An unknown id leaves no data: the node becomes a "(no data)" placeholder.
+function withImages(n, images) {
+	if (n.img !== undefined && n.data === undefined) n.data = images[n.img];
+	for (const l of n.layers || []) if (l.img !== undefined && l.data === undefined) l.data = images[l.img];
+	for (const c of n.ch || []) withImages(c, images);
+}
+
 // FORMAT v1 ({captures}) or prototype ({pages}, a page array, or one page) -> list of v1 captures.
 // A prototype file is a single "Desktop" screen.
 function normalise(files) {
@@ -595,7 +789,10 @@ function normalise(files) {
 	for (const d of files) {
 		if (d && Array.isArray(d.captures)) {
 			project = project || d.project || null;
-			for (const c of d.captures) caps.push(c);
+			for (const c of d.captures) {
+				if (d.images) withImages(c.root, d.images);
+				caps.push(c);
+			}
 			continue;
 		}
 		const pages = Array.isArray(d) ? d : d && Array.isArray(d.pages) ? d.pages : [d];

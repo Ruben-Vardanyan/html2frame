@@ -83,6 +83,14 @@ pages drawn by JavaScript.
   `overflow: hidden` boxes. The extractor finds the real font by comparing canvas text widths.
 - **Icon fonts** (Font Awesome Solid) are rarely installed where Figma runs, and a Private Use Area glyph in
   Inter is blank. The extractor draws icon glyphs to a canvas (the page's font is loaded there) and sends a PNG.
+  Current Font Awesome writes `content: "\f0fe" / ""` (glyph, then alt text). Reading that as one quoted string
+  left `<glyph>" / "` in the page: Figma showed `" / "` after every icon, and the extra characters (fallback
+  font, inside an inline-block `<i>`) changed the layout: a card's time row grew from 20 to 29 px, pushing its
+  buttons out of the card, and a lone filter icon wrapped onto a second line (32 → 64 px).
+  Only the strings before the top-level `/` count.
+- **Pseudo-elements on inputs.** A custom checkbox (`appearance: none`) draws its ✓ with `:checked::after`, a
+  toggle its knob. The span the extractor makes was put inside the `<input>`, which never shows children, so
+  every tick, radio dot and knob was lost. It now goes after the input, absolutely placed.
 - **Wrappers without a size.** A burger menu's `position: fixed; z-index: 6; height: 0` wrapper makes no frame,
   so its z-index was lost and the open drawer went under the page. Its layer now passes to the nodes inside.
 - **Collapsed panels.** A phone filter panel closed with `max-height: 0; overflow: hidden` has no height, so it
@@ -116,6 +124,35 @@ pages drawn by JavaScript.
   true circle, so circles and ellipses are measured exactly and written as arcs.
 - **Gradient text** (`background-clip: text; color: transparent`) came out as black text on a gradient box. The
   background is now the text's fill, laid out on the element's box.
+- **"Invalid string length".** V8 strings stop at about 512 MB. A 34-page site at Desktop alone was a 302 MB
+  capture (the same 27 MB of photos on every page); adding Phone made `JSON.stringify` fail. Images are now kept
+  once per file and the file is written piece by piece: both screens came to 29 MB.
+- **"load" waits for other sites' files.** One page of 68 failed with `page.goto: Timeout 15000ms exceeded`:
+  the browser's `load` event waits for every file, including a Font Awesome kit and Google Fonts from the
+  internet, and one of them was slow. Pages now open at `domcontentloaded`, then wait up to 15 s for `load`;
+  past that they are captured as they are, with a warning (also in the crawler and the panel's login helpers).
+- **`checkVisibility()` is false for `display: contents`.** It has no box, so a `<form style="display: contents">` and
+  its "Delete" button were dropped. Such elements are walked; their children are checked one by one.
+- **Visually hidden is not invisible to scripts.** `clip: rect(0 0 0 0)` (or `clip-path: inset(50%)`) hides a real
+  `<select>` kept behind a custom one, but it has a size and `checkVisibility()` says true: the hidden select was
+  drawn over the custom one. A clip of no area now means not drawn.
+- **The top layer.** A `<dialog>` opened with `showModal()` (or a popover, a fullscreen element) paints above
+  everything, whatever the z-index, with a `::backdrop`. Ranked as an ordinary positioned element inside a card,
+  it came out under the next cards, with no dim layer. Found with `:modal`, `:popover-open`, `:fullscreen`.
+- **Which font really draws the text.** Page scripts cannot tell. A width test cannot tell either for symbols:
+  when DM Sans lacks ★, the serif and monospace fallbacks lack it too, and Windows draws both with Segoe UI
+  Symbol, so the widths match. DevTools `CSS.getPlatformFontsForNode` can, on small hidden probes: the font per
+  stack (`ui-monospace` is not known to Edge on Windows: Consolas) and per symbol. Without it, Figma drew ★ in
+  another font, wider: a partial-fill rating slid off its grey row, and the stars grew over the gap to the date.
+  Not for emoji: given the browser's emoji font (Segoe UI Emoji), Figma drew 🚗 in one colour; left in the page's
+  font, Figma uses its own colour emoji. Emoji are found with `p{RGI_Emoji}` (✈️ with U+FE0F is one, plain ✈ is not).
+  A row of stars alone also sat lower than the date beside it: CSS puts the baseline by the text's own font and
+  draws the borrowed ★ on it, Figma lays the line out by the star's font (and its star can be bigger). The capture
+  records where the browser drew the ink (canvas metrics; matches the pixels to 0.02 px) and the plugin centres
+  Figma's rendered ink on it.
+- **A file input's words are hidden.** "Choose File" / "No file chosen" live in the input's user-agent shadow
+  tree; DevTools `DOM.getDocument({pierce: true})` reads them, in the browser's language. The button's size is
+  `getComputedStyle(el, '::file-selector-button')`.
 - **Viewport emulation in automation panes** may reset between turns. Re-apply it before each capture and
   check `innerWidth`.
 
@@ -137,6 +174,16 @@ pages drawn by JavaScript.
 - `createNodeFromSvg` returns a Frame. Resize it to the measured box, clear its fills, and turn off
   clipping.
 - `figma.createFrame()` clips content by default. Set `clipsContent` from CSS `overflow`.
+- **Image paints.** `FILL` is CSS `object-fit: cover` centred, `FIT` is `contain` centred; nothing else matches
+  CSS directly. For `fill` (stretch), `none`, `scale-down` and `object-position`, the plugin sizes a rectangle to
+  the image's own area and uses `CROP` with the identity `imageTransform`, which shows the whole image stretched
+  over the rectangle (to confirm in Figma), inside a clipping frame of the `<img>` box.
+- **Shadows of frames without a fill** are cast from their children. A card with `box-shadow` and no background
+  (a picture with square bottom corners over a white panel rounded on all four) got shadow lines inside it,
+  around the panel's top corners. An invisible fill (opacity 0) on the frame did not help: Figma still traced
+  the children. CSS casts a box-shadow from the box and paints it outside the box only, so the plugin puts it
+  on a rectangle of the box, under a mask that is everything around the box (an even-odd ring). `filter:
+  drop-shadow()` does follow the content and stays on the frame.
 - **Coordinates.** Capture uses absolute page coordinates; the plugin subtracts the parent's position.
 - **Pages per file.** The free plan may limit how many pages a file can have (not yet checked in Figma).
   Plugin v1 reuses the empty "Page 1" of a new file, and if `createPage()` fails it puts that screen on an

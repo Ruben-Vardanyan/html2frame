@@ -37,7 +37,7 @@
 					<span class="sr-only">Screen-reader only text</span>
 					<div>Second visible line</div>
 				</div>
-				<div class="expect">Expected: only the two visible lines. The 1px screen-reader text may appear as a tiny layer.</div>
+				<div class="expect">Expected: only the two visible lines. The screen-reader text (clip: rect(0 0 0 0)) leaves no layer.</div>
 			</div>
 
 			<div class="edge">
@@ -47,6 +47,39 @@
 					<ol class="counter-list" style="margin-top:12px"><li>First</li><li>Second</li></ol>
 				</div>
 				<div class="expect">Expected: the green dot. CSS counters (“1.”, “2.” from <code>counter()</code>) are not evaluated: they are missing.</div>
+			</div>
+
+			<div class="edge">
+				<h3>Hidden content, symbols, fonts, scrolling</h3>
+				<div class="stage">
+					<div class="hc-row"><button class="btn" type="button">Edit</button><form class="hc-contents" action="#"><button class="btn" type="button">Delete</button></form></div>
+					<div class="hc-select"><select class="sr-only" aria-hidden="true"><option>0–3 years</option></select><button class="btn" type="button">0–3 years ▾</button></div>
+					<span class="hc-inset">Hidden by clip-path: inset(50%)</span>
+					<div class="hc-meter" aria-label="4.5 out of 5"><span>★★★★★</span><span class="hc-meter-fill" style="width:90%">★★★★★</span></div>
+					<div class="hc-meta"><span class="hc-stars">★★★★☆</span><span>October 13, 2026</span></div>
+					<div class="hc-meta"><span>🚗 Auto</span><span>✈️ Travel</span><span>👍🏽</span><span>🇦🇲</span></div>
+					<div class="hc-files"><div class="hc-file">admin-company-edit.html</div><div class="hc-file">company-detail-not-eligible.html</div></div>
+					<div class="hc-scroll"><div class="hc-track"><div class="hc-box">One</div><div class="hc-box">Two</div><div class="hc-box">Three</div><div class="hc-box">Four</div><div class="hc-box">Five</div></div></div>
+					<dialog id="modal-test" class="hc-modal"><strong>Modal dialog</strong><p>Opened with showModal(): above everything, with a dim ::backdrop.</p></dialog>
+					<div id="pop-test" popover class="hc-pop">Popover (top layer)</div>
+				</div>
+				<div class="expect">Expected: Edit and Delete side by side (Delete sits in a <code>display: contents</code> form); one “0–3 years ▾” button, no second value from the hidden select; no clip-path text; the blue stars stop at 4½ over the grey ones, the date 10px after the stars; the emoji in colour (Figma's own emoji); each file name on two lines inside its box (Consolas, not Roboto Mono); the row of boxes cut at the edge and scrollable in Figma. In the “Edge cases — modal” state: a dim backdrop over the whole page and the dialog and popover above everything.</div>
+			</div>
+
+			<div class="edge">
+				<h3>Icon with alt text, shadow card</h3>
+				<div class="stage">
+					<span class="alt-icon">Rated</span>
+					<div class="shadow-card">
+						<div class="shadow-card-pic"><img src="img/product-2.jpg" alt="card picture"></div>
+						<div class="shadow-card-panel">White panel, rounded on all four corners</div>
+					</div>
+					<div class="shadow-card shadow-card-clip">
+						<div class="shadow-card-pic"><img src="img/product-3.webp" alt="card picture"></div>
+						<div class="shadow-card-panel">Same card, overflow hidden, turned 3° and at 80% opacity</div>
+					</div>
+				</div>
+				<div class="expect">Expected: “★ Rated” with no <code>" / "</code> after the star (Font Awesome writes <code>content: "\f0fe" / ""</code>). One shadow around each card; none inside it where the picture meets the panel. The second card's shadow turns and fades with it. Selecting a card in Figma shows the card's own outline, not a bigger box.</div>
 			</div>
 
 			<div class="edge">
