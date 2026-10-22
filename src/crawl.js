@@ -11,7 +11,7 @@ const path = require('path');
 const {resolveScreens} = require('./screens');
 const staticServer = require('./static-server');
 const {open} = require('./steps');
-const {loadSettings, settingsFromFolder, variantsOf, launchBrowser, newContext, settle, listHtml, titleName, fileName} = require('./capture');
+const {loadSettings, settingsFromFolder, variantsOf, launchBrowser, newContext, settle, listHtml, titleName, fileName, cancelledError, closeOnAbort} = require('./capture');
 
 const SKIP_EXT = /\.(pdf|zip|rar|7z|gz|tar|png|jpe?g|gif|webp|avif|svg|ico|bmp|mp4|webm|mov|mp3|wav|ogg|woff2?|ttf|otf|eot|css|js|mjs|map|json|xml|txt|csv|xlsx?|docx?|pptx?|exe|dmg|apk)$/i;
 const LOGOUT = /log\s*-?\s*out|sign\s*-?\s*out|log\s*off/i; // never follow these: they end the session
@@ -77,6 +77,7 @@ async function crawlContext(context, site, settings, seeds, opts, log) {
 	const ready = {misses: 0, off: false}, warned = new Set(); // "Ready when" that never comes true: see settle()
 	try {
 		while (queue.length && pages.length < opts.max) {
+			if (opts.signal && opts.signal.aborted) throw cancelledError();
 			const item = queue.shift();
 			let info;
 			try {
@@ -86,6 +87,7 @@ async function crawlContext(context, site, settings, seeds, opts, log) {
 				await settle(page, Object.assign({}, settings, {settleMs: Math.min(settings.settleMs ?? 300, 300)}), ready, w => { if (!warned.has(w)) { warned.add(w); log('  ' + w); } });
 				info = await readPage(page);
 			} catch (e) {
+				if (opts.signal && opts.signal.aborted) throw cancelledError(); // the closed browser, not the page
 				log('  could not open ' + item.path + ': ' + String(e.message).split('\n')[0]);
 				continue;
 			}
@@ -134,9 +136,11 @@ function nameAll(list) {
 }
 
 // settings -> {pages: [{name, path, group, account?, similar?}], unlinked: [...], redirects, log}
+// opts.signal (the panel's Cancel): the browser closes at once and crawl throws {cancelled: true}
 async function crawl(settings, opts = {}) {
 	const log = opts.log || (() => {});
-	const o = {depth: opts.depth ?? 3, max: opts.max ?? 200};
+	const o = {depth: opts.depth ?? 3, max: opts.max ?? 200, signal: opts.signal};
+	const stopped = () => !!(opts.signal && opts.signal.aborted);
 	const screen = resolveScreens(settings.screens && settings.screens.length ? [settings.screens[0]] : ['desktop'], 'portrait')[0];
 	const variant = variantsOf(settings)[0];
 	const accounts = settings.accounts || [];
@@ -165,6 +169,7 @@ async function crawl(settings, opts = {}) {
 		}
 		return false;
 	};
+	const unwatch = closeOnAbort(opts.signal, () => browser);
 
 	try {
 		let origin;
@@ -179,6 +184,7 @@ async function crawl(settings, opts = {}) {
 		const site = {origin, query: variant.query || {}};
 		const start = settings.start || (source.url ? new URL(source.url).pathname : '/index.html');
 		browser = await launchBrowser(log);
+		if (stopped()) throw cancelledError();
 
 		const runs = [{name: null, account: null}].concat(accounts.map(a => ({name: a.name, account: a})));
 		for (const run of runs) {
@@ -188,6 +194,7 @@ async function crawl(settings, opts = {}) {
 			try {
 				context = await newContext(browser, screen, variant, run.account, site, info);
 			} catch (e) {
+				if (stopped()) throw cancelledError();
 				log('  ' + e.message.split('\n')[0] + ' (skipped)');
 				continue;
 			}
@@ -205,9 +212,11 @@ async function crawl(settings, opts = {}) {
 			}
 		}
 	} finally {
+		unwatch();
 		if (browser) await browser.close().catch(() => {});
 		if (server) await server.close();
 	}
+	if (stopped()) throw cancelledError();
 
 	nameAll(kept);
 	const guestGroup = accounts.length ? 'Public' : 'Pages';

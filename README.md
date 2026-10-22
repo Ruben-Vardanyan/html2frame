@@ -95,18 +95,22 @@ language or theme option's own value for the same key wins.
 
 **5. Pages.** Click **Find pages**: html2frame opens the site, follows its links (as a guest, then logged in
 with each account) and fills the list. Pages that only differ by an id (`product.html?id=1…50`) are listed once,
-as "+N similar".
+as "+N similar". **Cancel** stops it; nothing is added then.
 
 ![The page list](docs/images/panel-pages.png)
 
-Untick pages you don't need, rename them, or change their group (each group becomes a row in Figma). The row
-buttons: **⋯** steps before the capture (e.g. `[{"click": ".menu-button"}]` for an open menu, or filling a form
+Untick pages you don't need, rename them, or change their group (each group becomes a row in Figma, or its own
+section). **Search** finds pages by name, address, group or account, also among the "similar" addresses;
+**Set group…** gives the pages shown (all of them without a search) one group, e.g. "My pages". **↗** next to an
+address opens the page in your browser (as a visitor). The row buttons: **⋯** steps before the capture (e.g. `[{"click": ".menu-button"}]` for an open menu, or filling a form
 to show its errors) and the screen sizes the page is captured on (a "menu open" state only on phones, where the
 burger button shows; none ticked = all), **⧉** duplicate a page as an extra state, **×** remove. **+ Add a page** adds one by hand.
 
-**6. Capture.** Click **Capture** and follow the progress. The estimate shows how many frames you will get.
-Under **Recent captures**, **×** moves one capture file to the Recycle Bin (Trash on macOS) and **Remove all**
-moves all of them, so you can bring one back from there.
+**6. Capture.** Click **Capture** and follow the progress; **Cancel** stops it without saving anything. The
+estimate shows how many frames you will get. While a capture or Find pages runs, the settings are locked (the
+search and the logs still work). Under **Recent captures**, **×** moves one capture file to the Recycle Bin
+(Trash on macOS) and **Remove all** moves all of them, so you can bring one back from there. **View all** lists
+every capture with a search and filters by project and date.
 
 ![Capture finished](docs/images/panel-capture.png)
 
@@ -118,9 +122,11 @@ moves all of them, so you can bring one back from there.
 3. Tick the **screen sizes**, **languages/themes** and **groups** to import (nothing is ticked at first; the
    button shows how many frames you will get).
 4. Choose the **layout**:
-   - **One page**: everything on the current Figma page, one **Section** per screen size and variant
-     ("Desktop — English · Dark");
-   - **Page per screen**: a Figma page for each.
+   - **One page**: everything on the current Figma page, in **Sections**;
+   - **Page per screen**: a Figma page for each screen size and variant ("Desktop — English · Dark").
+   - **Sections**: **Screen** (a section per screen size, a row per group), **Group** (a section per group,
+     e.g. "My pages", with a row per screen size) or **Group + screen** ("My pages — Desktop", "My pages —
+     Phone portrait"). Groups come from the panel's page list.
    - **Use Auto Layout**: flex rows and columns (navigation, buttons, cards) become Auto Layout frames where
      Auto Layout reproduces the page exactly; everything else keeps its exact position.
 5. Click **Import**. A report lists the frames per section, fonts that were replaced, and any warnings.

@@ -1,7 +1,8 @@
 // html2frame — MIT License, © 2026 Ruben Vardanyan (see LICENSE)
 // code.js — html2frame Figma plugin (v1). Rebuilds captures (docs/FORMAT.md) as frames, text, vectors and
-// images. All screens on the current page (D14) or one Figma page per screen (D4); one row per group with a label
-// above; frames named "Page — Variant" (D6).
+// images. All screens on the current page (D14) or one Figma page per screen (D4); Sections per screen with one
+// row per group (default), per group with one row per screen, or per group and screen (D19); frames named
+// "Page — Variant" (D6).
 // Every node carries absolute page coordinates; children are placed relative to their parent.
 // Started from the prototype plugin (font resolution, frame/text/svg/image building).
 
@@ -932,9 +933,46 @@ async function label(page, text, x, y, size) {
 	return t;
 }
 
-// layout "single": every screen/variant on the current Figma page, one Section each (D14).
-// layout "pages": one Figma page per screen/variant (D4).
-async function importCaptures(caps, project, multi, layout) {
+// The plugin's work runs on Figma's main thread: the window only receives a message (and redraws its progress
+// bar) when the plugin gives the thread back, which awaiting already-loaded fonts never does. So every progress
+// message is followed by a short real pause (about one screen refresh).
+async function progress(text, done, total) {
+	figma.ui.postMessage({type: 'progress', text, done, total});
+	await new Promise(r => setTimeout(r, 16));
+}
+
+// Where each capture goes: Figma page (null = the current page) -> blocks -> rows, in file order.
+// sections (D19): "screen" (default) = a Section per screen/variant with a row per group (D14; with "pages",
+// D4's rows per group on each screen's page); "group" = a Section per group (+ variant) with a row per screen
+// ("pages": a Section per group on each screen's page); "group-screen" = a Section per group and screen/variant,
+// one row (with "pages" the same as "group"). A block named null is not a Section; a row named null has no label.
+function arrange(caps, multi, single, sections) {
+	const pages = [];
+	const find = (list, name, make) => {
+		let it = list.find(x => x.name === name);
+		if (!it) list.push(it = make());
+		return it;
+	};
+	for (const c of caps) {
+		const screen = pageNameOf(c, multi), group = groupOf(c), variant = multi && c.variant ? ' — ' + c.variant : '';
+		let pageName = null, block, row;
+		if (!single) {
+			pageName = screen;
+			if (sections === 'screen') [block, row] = [null, group];
+			else [block, row] = [group, null];
+		} else if (sections === 'group') [block, row] = [group + variant, (c.screen && c.screen.label) || 'Desktop'];
+		else if (sections === 'group-screen') [block, row] = [group + ' — ' + screen, null];
+		else [block, row] = [screen, group];
+		const page = find(pages, pageName, () => ({name: pageName, blocks: []}));
+		const b = find(page.blocks, block, () => ({name: block, rows: []}));
+		find(b.rows, row, () => ({name: row, caps: []})).caps.push(c);
+	}
+	return pages;
+}
+
+// layout "single": everything on the current Figma page, in Sections (D14, D19).
+// layout "pages": one Figma page per screen/variant (D4), with Sections per group if chosen (D19).
+async function importCaptures(caps, project, multi, layout, sections) {
 	const single = layout !== 'pages';
 	const home = figma.currentPage;
 	fallbacks = {};
@@ -944,78 +982,73 @@ async function importCaptures(caps, project, multi, layout) {
 		if (warnings.length < 200) warnings.push(w);
 	};
 
-	figma.ui.postMessage({type: 'progress', text: 'Loading fonts…', done: 0, total: caps.length});
+	await progress('Loading fonts…', 0, caps.length);
 	await loadAvailableFonts();
 	await resolveFont('Inter', 700, false);
-	for (const c of caps) await preloadFonts(c.root);
-
-	const byPage = new Map();
-	for (const c of caps) {
-		const name = pageNameOf(c, multi);
-		if (!byPage.has(name)) byPage.set(name, []);
-		byPage.get(name).push(c);
+	for (let i = 0; i < caps.length; i++) {
+		await preloadFonts(caps[i].root);
+		if (caps.length > 1) await progress('Loading fonts… ' + (i + 1) + ' / ' + caps.length + ' pages', 0, 0);
 	}
 
 	const used = [], perPage = [], notes = [];
 	let first = null, done = 0;
-	for (const [name, list] of byPage) {
-		const target = single ? {page: home, fallback: false} : await targetPage(name, used);
+	for (const pageInfo of arrange(caps, multi, single, ['group', 'group-screen'].includes(sections) ? sections : 'screen')) {
+		const target = single ? {page: home, fallback: false} : await targetPage(pageInfo.name, used);
 		const page = target.page;
 		await figma.setCurrentPageAsync(page);
 		if (!used.includes(page)) used.push(page);
-		if (target.fallback) notes.push('Could not add a Figma page for "' + name + '" (' + target.reason + '); placed it on "' + page.name + '" instead.');
+		if (target.fallback) notes.push('Could not add a Figma page for "' + pageInfo.name + '" (' + target.reason + '); placed it on "' + page.name + '" instead.');
 
-		// a block that shares its page with others is a Figma Section named after the screen/variant;
-		// children of a section are placed relative to it
-		const start = startPoint(page);
-		const boxed = single || target.fallback;
-		const section = boxed ? newSection(page, name) : null;
-		const parent = section || page;
-		const x0 = section ? SECTION_PAD : start.x;
-		let y = section ? SECTION_PAD : start.y;
-		let right = x0;
-		if (section) {
-			section.x = start.x;
-			section.y = start.y;
-		} else if (boxed) {
-			await label(page, name, x0, y, LABEL_SIZE * 1.5); // no Sections in this Figma: a big title instead
-			y += TITLE_SPACE;
-		}
-		const rows = [];
-		for (const c of list) {
-			const g = groupOf(c);
-			let row = rows.find(r => r.name === g);
-			if (!row) rows.push(row = {name: g, caps: []});
-			row.caps.push(c);
-		}
-		const frames = [];
-		for (const row of rows) {
-			await label(parent, row.name, x0, y, LABEL_SIZE);
-			const top = y + LABEL_SPACE;
-			let x = x0, rowH = 0;
-			for (const c of row.caps) {
-				figma.ui.postMessage({type: 'progress', text: name + ' · ' + frameNameOf(c), done: ++done, total: caps.length});
-				try {
-					const root = Object.assign({}, c.root, {x: 0, y: 0});
-					const frame = await build(parent, root, 0, 0, warn);
-					frame.name = frameNameOf(c);
-					frame.x = x;
-					frame.y = top;
-					frame.clipsContent = true;
-					frames.push(frame);
-				} catch (e) {
-					failures.push(name + ' · ' + frameNameOf(c) + ': ' + (e && e.message ? e.message : e));
-				}
-				x += c.width + GAP_X;
-				rowH = Math.max(rowH, c.height);
+		for (const block of pageInfo.blocks) {
+			// a block that shares its page with others is a Figma Section; on a page of its own (no fallback) the
+			// rows go straight onto the page. Children of a section are placed relative to it.
+			const name = !pageInfo.name ? block.name : block.name && target.fallback ? pageInfo.name + ' — ' + block.name : block.name || pageInfo.name;
+			const start = startPoint(page);
+			const boxed = single || target.fallback || block.name !== null;
+			const section = boxed ? newSection(page, name) : null;
+			const parent = section || page;
+			const x0 = section ? SECTION_PAD : start.x;
+			let y = section ? SECTION_PAD : start.y;
+			let right = x0;
+			if (section) {
+				section.x = start.x;
+				section.y = start.y;
+			} else if (boxed) {
+				await label(page, name, x0, y, LABEL_SIZE * 1.5); // no Sections in this Figma: a big title instead
+				y += TITLE_SPACE;
 			}
-			right = Math.max(right, x - GAP_X);
-			y = top + rowH + GAP_Y;
+			const frames = [];
+			for (const row of block.rows) {
+				if (row.name !== null) {
+					await label(parent, row.name, x0, y, LABEL_SIZE);
+					y += LABEL_SPACE;
+				}
+				const top = y;
+				let x = x0, rowH = 0;
+				for (const c of row.caps) {
+					await progress(name + ' · ' + frameNameOf(c), ++done, caps.length);
+					try {
+						const root = Object.assign({}, c.root, {x: 0, y: 0});
+						const frame = await build(parent, root, 0, 0, warn);
+						frame.name = frameNameOf(c);
+						frame.x = x;
+						frame.y = top;
+						frame.clipsContent = true;
+						frames.push(frame);
+					} catch (e) {
+						failures.push(name + ' · ' + frameNameOf(c) + ': ' + (e && e.message ? e.message : e));
+					}
+					x += c.width + GAP_X;
+					rowH = Math.max(rowH, c.height);
+				}
+				right = Math.max(right, x - GAP_X);
+				y = top + rowH + GAP_Y;
+			}
+			if (section) section.resizeWithoutConstraints(Math.max(right + SECTION_PAD, 400), Math.max(y - GAP_Y + SECTION_PAD, 400));
+			perPage.push((pageInfo.name && block.name && !target.fallback ? pageInfo.name + ' · ' : '') + name + ': ' + frames.length + ' frame(s)');
+			if (!first && frames.length) first = {page, nodes: []};
+			if (first && first.page === page) first.nodes.push(...(section ? [section] : frames));
 		}
-		if (section) section.resizeWithoutConstraints(Math.max(right + SECTION_PAD, 400), Math.max(y - GAP_Y + SECTION_PAD, 400));
-		perPage.push(name + ': ' + frames.length + ' frame(s)');
-		if (!first && frames.length) first = {page, nodes: []};
-		if (first && first.page === page) first.nodes.push(...(section ? [section] : frames));
 	}
 
 	if (first) {
@@ -1054,9 +1087,11 @@ async function importCaptures(caps, project, multi, layout) {
 
 let loaded = null; // {project, captures}
 
-// the last layout choice is remembered on this computer
-Promise.all([figma.clientStorage.getAsync('layout'), figma.clientStorage.getAsync('autoLayout')])
-	.then(([v, al]) => figma.ui.postMessage({type: 'settings', layout: v === 'pages' ? 'pages' : 'single', autoLayout: al === true}), () => {});
+const SECTIONS = ['screen', 'group', 'group-screen'];
+
+// the last layout choices are remembered on this computer
+Promise.all([figma.clientStorage.getAsync('layout'), figma.clientStorage.getAsync('autoLayout'), figma.clientStorage.getAsync('sections')])
+	.then(([v, al, sec]) => figma.ui.postMessage({type: 'settings', layout: v === 'pages' ? 'pages' : 'single', autoLayout: al === true, sections: SECTIONS.includes(sec) ? sec : 'screen'}), () => {});
 
 figma.ui.onmessage = async (msg) => {
 	if (msg.type === 'open-repo') return figma.openExternal('https://github.com/Ruben-Vardanyan/html2frame');
@@ -1081,11 +1116,13 @@ figma.ui.onmessage = async (msg) => {
 		}
 		if (!caps.length) return figma.ui.postMessage({type: 'error', text: 'Nothing matches that selection.'});
 		const layout = msg.layout === 'pages' ? 'pages' : 'single';
+		const sections = SECTIONS.includes(msg.sections) ? msg.sections : 'screen';
 		USE_AUTO_LAYOUT = msg.autoLayout === true;
 		await figma.clientStorage.setAsync('layout', layout).catch(() => {});
 		await figma.clientStorage.setAsync('autoLayout', USE_AUTO_LAYOUT).catch(() => {});
+		await figma.clientStorage.setAsync('sections', sections).catch(() => {});
 		try {
-			const report = await importCaptures(caps, loaded.project, multi, layout);
+			const report = await importCaptures(caps, loaded.project, multi, layout, sections);
 			figma.ui.postMessage({type: 'done', text: report.text});
 		} catch (e) {
 			figma.ui.postMessage({type: 'done', text: 'Error: ' + (e && e.message ? e.message : e)});

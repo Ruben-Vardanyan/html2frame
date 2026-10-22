@@ -21,6 +21,7 @@
 	:root { color-scheme: light; --scroll: var(--figma-color-border-strong, #c9ccd1); }
 	html.figma-dark { color-scheme: dark; --scroll: var(--figma-color-border-strong, #4a4a4a); }
 	* { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: var(--scroll) transparent; }
+	[hidden] { display: none !important; }
 	::-webkit-scrollbar { width: 8px; height: 8px; }
 	::-webkit-scrollbar-track { background: transparent; }
 	::-webkit-scrollbar-thumb { background: var(--scroll); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
@@ -90,6 +91,14 @@
 	.thumb i { display: block; border-radius: 2px; background: var(--text-3); opacity: .55; }
 	.option:has(input:checked) .thumb i { background: var(--brand); opacity: .8; }
 	.toggle-row { margin-top: 8px; border: 1px solid var(--line); border-radius: var(--radius); }
+	/* sections: per screen, per group, per group and screen (D19) */
+	.sub-head { margin: 12px 2px 6px; font-size: 11px; font-weight: 600; color: var(--text-2); }
+	.choice3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+	.choice3.two { grid-template-columns: repeat(2, 1fr); }
+	.choice3 label { display: flex; align-items: center; justify-content: center; padding: 7px 6px; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; font-weight: 500; text-align: center; transition: border-color .12s, background .12s; }
+	.choice3 label:hover { background: var(--bg-hover); }
+	.choice3 input { display: none; }
+	.choice3 label:has(input:checked) { border-color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); background: var(--brand-soft); }
 
 	/* report */
 	.report { display: none; border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; }
@@ -159,7 +168,7 @@
 			<label class="option">
 				<input type="radio" name="layout" value="single" checked>
 				<div class="thumb" style="flex-direction:column"><i style="height:6px;width:60%"></i><i style="height:8px;width:100%"></i><i style="height:8px;width:70%"></i></div>
-				<div><b>One page</b><br><span>A section per screen, on the current page</span></div>
+				<div><b>One page</b><br><span>Sections on the current page</span></div>
 			</label>
 			<label class="option">
 				<input type="radio" name="layout" value="pages">
@@ -167,6 +176,13 @@
 				<div><b>Page per screen</b><br><span>A Figma page for each size</span></div>
 			</label>
 		</div>
+		<div class="sub-head">Sections</div>
+		<div class="choice3" id="sectionsChoice">
+			<label><input type="radio" name="sections" value="screen" checked>Screen</label>
+			<label><input type="radio" name="sections" value="group">Group</label>
+			<label id="groupScreen"><input type="radio" name="sections" value="group-screen">Group + screen</label>
+		</div>
+		<p class="hint" id="sectionsHint"></p>
 		<label class="row toggle-row">
 			<input type="checkbox" id="autoLayout">
 			<span class="grow"><span class="name">Use Auto Layout</span><span class="dim">flex rows and columns</span></span>
@@ -320,6 +336,27 @@
 		return on ? on.value : 'single';
 	}
 
+	function sections() {
+		const on = document.querySelector('input[name=sections]:checked');
+		return on ? on.value : 'screen';
+	}
+
+	// with a page per screen, "Group + screen" is the same as "Group": that choice is hidden there
+	const SECTION_HINTS = {
+		'single screen': 'A section per screen size, with a row per group.',
+		'single group': 'A section per group (e.g. “My pages”), with a row per screen size. Groups are set in the control panel.',
+		'single group-screen': 'A section per group and screen size, e.g. “My pages — Desktop”. Groups are set in the control panel.',
+		'pages screen': 'A row per group on each screen size’s page.',
+		'pages group': 'A section per group on each screen size’s page. Groups are set in the control panel.',
+	};
+	function showSections() {
+		const pages = layout() === 'pages';
+		if (pages && sections() === 'group-screen') document.querySelector('input[name=sections][value=group]').checked = true;
+		$('groupScreen').hidden = pages;
+		$('sectionsChoice').classList.toggle('two', pages);
+		$('sectionsHint').textContent = SECTION_HINTS[layout() + ' ' + sections()] || '';
+	}
+
 	function refresh(updateStatus) {
 		const missing = choices ? lists.filter(l => shown(l) && !picked(l).length) : [];
 		lists.forEach(l => { if (sectionOf(l)) sectionOf(l).classList.toggle('missing', missing.includes(l)); });
@@ -340,7 +377,9 @@
 		imported = false;
 		refresh();
 	}
-	document.querySelectorAll('input[name=layout], #autoLayout').forEach(r => { r.addEventListener('change', changed); });
+	document.querySelectorAll('input[name=layout], input[name=sections], #autoLayout').forEach(r => { r.addEventListener('change', changed); });
+	document.querySelectorAll('input[name=layout], input[name=sections]').forEach(r => { r.addEventListener('change', showSections); });
+	showSections();
 
 	function showChoices(msg) {
 		imported = false;
@@ -387,7 +426,7 @@
 		const sel = {screens: picked(listById('screens'))};
 		if (choices.variants.length > 1) sel.variants = pickedVariants();
 		if (choices.groups.length > 1) sel.groups = picked(listById('groups'));
-		send(Object.assign({type: 'import', layout: layout(), autoLayout: $('autoLayout').checked}, sel));
+		send(Object.assign({type: 'import', layout: layout(), sections: sections(), autoLayout: $('autoLayout').checked}, sel));
 	};
 
 	// the plugin's report: first line = summary, "Heading:" lines, "• item" and "⚠ note" lines
@@ -420,6 +459,9 @@
 			const r = document.querySelector('input[name=layout][value="' + msg.layout + '"]');
 			if (r) r.checked = true;
 			$('autoLayout').checked = !!msg.autoLayout;
+			const sec = document.querySelector('input[name=sections][value="' + msg.sections + '"]');
+			if (sec) sec.checked = true;
+			showSections();
 		}
 		if (msg.type === 'loaded') showChoices(msg);
 		if (msg.type === 'error') setStatus(msg.text, true);

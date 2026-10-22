@@ -632,10 +632,28 @@ function variantList(settings) {
 
 // ---- run --------------------------------------------------------------------------------------------
 
-// settings: a projects/<name>.json object. opts: {screens, orientation, pages: [names], out, onProgress, log}
+// The panel's Cancel (opts.signal, an AbortSignal): the browser is closed at once, which stops a page in flight;
+// the run then throws this error ({cancelled: true}) and writes nothing.
+function cancelledError() {
+	return Object.assign(new Error('Cancelled'), {cancelled: true});
+}
+
+// closes the browser that getBrowser() returns when the signal fires; returns the function that stops watching
+function closeOnAbort(signal, getBrowser) {
+	if (!signal) return () => {};
+	const onAbort = () => {
+		const b = getBrowser();
+		if (b) b.close().catch(() => {});
+	};
+	signal.addEventListener('abort', onAbort);
+	return () => signal.removeEventListener('abort', onAbort);
+}
+
+// settings: a projects/<name>.json object. opts: {screens, orientation, pages: [names], out, onProgress, log, signal}
 async function capture(settings, opts = {}) {
 	const log = opts.log || (() => {});
 	const onProgress = opts.onProgress || (() => {});
+	const stopped = () => !!(opts.signal && opts.signal.aborted);
 	const screens = resolveScreens(opts.screens || settings.screens, opts.orientation || settings.orientation);
 	const variants = variantsOf(settings);
 	const accounts = {};
@@ -657,6 +675,7 @@ async function capture(settings, opts = {}) {
 	if (!total) throw new Error('No pages for the chosen screens (check the pages\' "screens").');
 	let done = 0;
 	const now = new Date();
+	const unwatch = closeOnAbort(opts.signal, () => browser);
 
 	try {
 		let origin;
@@ -670,6 +689,7 @@ async function capture(settings, opts = {}) {
 			throw new Error('Settings need "source": {"folder": …} or {"url": …}.');
 		}
 		browser = await launchBrowser(log);
+		if (stopped()) throw cancelledError();
 		const ready = {misses: 0, off: false}; // "Ready when" across the whole run (see settle)
 
 		for (const screen of screens) {
@@ -687,6 +707,7 @@ async function capture(settings, opts = {}) {
 				const imageCache = new Map();
 				try {
 					for (const entry of forPage(screen, variant)) {
+						if (stopped()) throw cancelledError();
 						const where = screen.label + (variant.name ? ' / ' + variant.name : '');
 						const t0 = Date.now();
 						const warnings = [];
@@ -716,6 +737,7 @@ async function capture(settings, opts = {}) {
 							// a phone browser zooms out when something is wider than the screen; the frame keeps the screen width
 							if (result.innerWidth !== screen.width) warnings.push('content is ' + result.innerWidth + 'px wide on a ' + screen.width + 'px screen (horizontal overflow); the frame is ' + screen.width + 'px and cuts it off');
 						} catch (e) {
+							if (stopped()) throw cancelledError(); // the closed browser, not a page error
 							const message = String(e && e.message || e);
 							failures.push({name: entry.name, screen: screen.id, variant: variant.name || null, error: message});
 							log(where + ' | ' + entry.name + ' | FAILED: ' + message);
@@ -732,9 +754,11 @@ async function capture(settings, opts = {}) {
 			}
 		}
 	} finally {
+		unwatch();
 		if (browser) await browser.close().catch(() => {});
 		if (server) await server.close();
 	}
+	if (stopped()) throw cancelledError();
 
 	const data = {version: 1, project: settings.name || 'Project', capturedAt: now.toISOString(), images: poolImages(captures), captures};
 	let file = null;
@@ -855,4 +879,4 @@ if (require.main === module) {
 	});
 }
 
-module.exports = {capture, loadSettings, settingsFromFolder, variantsOf, launchBrowser, newContext, settle, listHtml, titleName, fileName};
+module.exports = {capture, cancelledError, closeOnAbort, loadSettings, settingsFromFolder, variantsOf, launchBrowser, newContext, settle, listHtml, titleName, fileName};

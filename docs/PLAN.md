@@ -167,11 +167,23 @@ files start with a one-line licence notice. Cards:
    "Test login" shows where it landed and a screenshot.
 4. **Stored values.** The project-wide `localStorage` as a Table (key, value, remove; "Add a value") or Bulk
    text (one `key=value` per line); values starting with `[` or `{` must be valid JSON (marked red otherwise).
-5. **Pages.** "Find pages" (crawl, live log; adds new pages and keeps edited ones; option to include pages
-   nothing links to), a table: include, name, address, group, account, tags (similar, steps, some
-   screens/variants), steps (JSON) and the screens the page is captured on (none = all; the frame estimate counts them), duplicate as a state, remove; "Add a page".
-6. **Capture.** Frame estimate (pages × screens × variants), Capture (saves first), progress bar and log
-   (SSE), result with failures and "Download JSON", the Figma hint, recent captures (remove one, or all, to the recycle bin / Trash).
+5. **Pages.** "Find pages" (crawl, live log, Cancel; adds new pages and keeps edited ones; option to include pages
+   nothing links to), a table: include, name, address with an open icon (↗, the page in the user's browser, as a
+   visitor: an address site directly, a folder through `GET /api/open`), group (autocomplete from the groups in
+   use), account, tags (similar, steps, some screens/variants), steps (JSON) and the screens the page is captured
+   on (none = all; the frame estimate counts them), duplicate as a state, remove; "Add a page". A search box
+   filters the rows by name, address, group, account or a "similar" address (shown under the address when that is
+   what matched), "N of M shown"; the header box then ticks the shown pages, and "Set group…" gives the shown
+   pages (all of them without a search) one group (D19).
+6. **Capture.** Frame estimate (pages × screens × variants), Capture (saves first), progress bar, Cancel and log
+   (SSE), result with failures and "Download JSON", the Figma hint, the 8 most recent captures (remove one, or all,
+   to the recycle bin / Trash) and "View all (N)": a dialog with every capture, a search (file or project), project
+   and date filters, Download and remove per file, and "Remove shown".
+
+While Find pages or Capture runs, the project cannot change: cards 1–4, the page table, its buttons and
+Capture are `inert` (dimmed); the page search, the logs, Cancel, downloads, Help and the theme stay usable. A
+panel opened while a job runs (a reload or a second tab) follows it, with Cancel. Cancel stops the job as soon as
+its browser closes and saves nothing: no capture file, no pages added.
 
 API (JSON):
 
@@ -189,12 +201,15 @@ API (JSON):
 | `POST /api/test-login` | `{project, account}` → `{ok, landing, shot}` |
 | `POST /api/crawl` | `{project, save, unlinked}` → `{job}` |
 | `POST /api/capture` | `{project, screens?, pages?}` → `{job}` |
-| `GET /api/jobs/:id/events` | SSE: `log`, `progress`, `done {result}`, `error` (also `/api/capture/:id/events`) |
-| `GET /api/captures` | list captures (newest first) |
-| `DELETE /api/captures/:file`, `DELETE /api/captures` | move one capture, or all of them, to the recycle bin / Trash (`src/trash.js`: Windows Recycle Bin, macOS Finder with a `~/.Trash` fallback, Linux `gio trash`); panel only (the preflight allows GET alone) |
+| `GET /api/jobs/:id/events` | SSE: `log`, `progress`, `done {result}`, `error`, `cancelled` (also `/api/capture/:id/events`) |
+| `POST /api/jobs/:id/cancel` | stops the job: the browser closes, nothing is saved, the stream ends with `cancelled` |
+| `GET /api/open?project=&path=` | redirects to the page: an address site directly, a folder through a static server (127.0.0.1, one per folder, kept while the panel runs) |
+| `GET /api/captures` | list captures (newest first): `{file, size, modified, project, capturedAt}`, the last two read from the file's first kilobyte |
+| `DELETE /api/captures/:file`, `DELETE /api/captures` | move one capture, some (`{files: [...]}`), or all of them (no body), to the recycle bin / Trash (`src/trash.js`: Windows Recycle Bin, macOS Finder with a `~/.Trash` fallback, Linux `gio trash`); panel only (the preflight allows GET alone) |
 | `GET /api/captures/latest`, `/api/captures/:file` | a capture file (`?download` for a download); CORS `*` and private-network preflight for the plugin |
 
-One browser job (crawl, capture, test login) at a time; another gets 409. The server binds to `127.0.0.1`
+One browser job (crawl, capture, test login) at a time; another gets 409. `capture()` and `crawl()` take an
+`AbortSignal` (`opts.signal`) for Cancel; the command line passes none. The server binds to `127.0.0.1`
 only and answers only requests addressed to `localhost:5600` / `127.0.0.1:5600` (no DNS rebinding).
 
 ## Figma plugin v1 (`figma-plugin/`)
@@ -217,6 +232,14 @@ building.
     named after it, stacked top to bottom (400 px apart) below any existing content, with its group rows
     inside (120 px padding). Without `figma.createSection` (older Figma), a 96 px title instead.
   - *Page per screen* (D4), described next.
+- **Sections (D19).** A second choice, remembered too (`sections` in the import message): *Screen* (default, as
+  above), *Group* (a Section per group, plus the variant when there are several, with a 64 px screen label above
+  each row) or *Group + screen* (a Section per group and screen, e.g. "My pages — Desktop", one row without a
+  label). With *Page per screen*, *Group* makes a Section per group on each screen's page; *Group + screen* is not
+  offered there (the same thing).
+- **Progress.** Figma delivers messages to the plugin window only when the plugin gives its thread back, so each
+  progress message (fonts per page, then one per frame) is followed by a 16 ms pause; the bar moves frame by
+  frame.
 - **Page per screen (D4).** One Figma page per screen (plus variant, if there are several):
   - create it with `figma.createPage()` if missing and switch with `await figma.setCurrentPageAsync()`;
   - the empty "Page 1" of a new file is renamed and reused instead of being left behind;
@@ -254,11 +277,11 @@ building.
    scale 1 (true CSS pixels). The owner accepted this result as passing step 1. (The prototype and the
    InsureNow sample were removed before publishing; they stay in git history.)
 2. **Done.** `test/mock-figma.js` plus plugin v1. Check: the mock imports v1 and prototype files with no
-   errors, and creates the right Figma pages. `node test/mock-figma.js` runs 20 tests: a prototype-format
+   errors, and creates the right Figma pages. `node test/mock-figma.js` runs 33 tests: a prototype-format
    file (`test/prototype-sample.json`, 3 pages cut from the InsureNow sample, which matched the prototype plugin's 3152 frames / 1773 texts / 106 SVGs), the newest `captures/*.json`, a
    synthetic 2 screens × 2 variants file (gradients, image fills, image radius, a rejected image, a missing
    font), the gradient transform, the page-limit fallback, a second import below existing content, and a bad
-   file, plus the one-page layout with Sections (D14), its no-Sections fallback, the remembered layout choice, the screen/variant/group selection, dimension lists, fonts per script (Armenian letters: the page's Armenian
+   file, plus the one-page layout with Sections (D14), its no-Sections fallback, the remembered layout choice, sections per group and per group and screen (D19, both layouts), progress messages with a pause after each, the screen/variant/group selection, dimension lists, fonts per script (Armenian letters: the page's Armenian
    font, else Calibri, else other installed Armenian fonts), CSS transforms (mirrors too), styled text ranges with a first-line indent, Auto Layout, clip-path masks with vertical
    text, gradients in px (corner angles on wide boxes, radial circles), and line breaks (auto width for <br> lines, room to spare when wrapping) with gradient text. InsureNow has no gradients or
    background images, so those are only checked synthetically.
