@@ -1,4 +1,4 @@
-// html2frame — MIT License, © 2026 Ruben Vardanyan (see LICENSE)
+// html2frame — © 2026 Ruben Vardanyan, GNU GPL v3 or later (see LICENSE and NOTICE)
 // static-server.js — serves a project folder exactly as it is on disk.
 // No clean URLs and no redirects: "page.html?slug=x" must keep its query (RESEARCH §4).
 

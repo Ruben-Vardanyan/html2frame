@@ -6,7 +6,7 @@ the data contract in [FORMAT.md](FORMAT.md), and the background in [RESEARCH.md]
 
 Constraints:
 - Plain JavaScript, no build step, TAB indentation.
-- Node 18+.
+- Node 20+ (`playwright-core` 1.63 needs it; `package.json` "engines").
 - **One runtime dependency: `playwright-core`.** Launch the installed browser with `channel: 'msedge'`,
   falling back to `'chrome'`; nothing else is downloaded.
 - The Figma plugin stays a local development plugin (free plan).
@@ -14,9 +14,10 @@ Constraints:
 ## Layout
 
 ```
-start.bat / start.command      Windows / macOS: npm install on first run, start server, open browser
+Start (Windows).bat           Windows / macOS launchers (D21): run src/start.js (check, icons, panel in the
+Start (macOS).command         background); messages and a pause when something is missing
 package.json                   "start": "node server.js"; dependency playwright-core
-server.js                      http server on localhost:5600: panel UI, API, SSE progress
+server.js                      http server on localhost:5600: panel UI, API, SSE progress; --log (output to a file)
 src/
   extract.js                   DRAFT DONE: in-page extractor (window.__html2frame.extract(opts))
   screens.js                   DRAFT DONE: presets + resolveScreens(screens, orientation)
@@ -24,7 +25,13 @@ src/
   capture.js                   Playwright runner (also a CLI: node src/capture.js projects/x.json)
   crawl.js                     same-origin link crawler (per account)
   steps.js                     runs step lists (goto, click, fill, …) on a Playwright page
-panel/                         index.html, panel.js, panel.css (vanilla); help.html, help.js (adding the plugin to Figma); theme.js (System / Light / Dark)
+  start.js, check-node.js      what the Start files and icons run; Node.js version check (old syntax on purpose)
+  setup.js                     the setup check (saved in .html2frame/check.json), icon questions, starts the panel
+  shortcut.js                  Desktop / Start menu shortcuts (Windows), html2frame.app + Desktop link (macOS)
+  update.js                    weekly check of GitHub's latest release; one-click update (release ZIP or git tag), backup, roll back
+  local.js                     paths and state of the git-ignored .html2frame/ folder
+panel/                         index.html, panel.js, panel.css (vanilla); help.html, help.js (adding the plugin to Figma); settings.html, settings.js (D21); about.html, about.js (D22); common.js (API helpers, Quit, "stopped" screen, update dot; loaded first); theme.js (System / Light / Dark)
+.html2frame/                   this computer's files (git-ignored): check.json, state.json, setup.log, logs/, update/, backup/, files.json
 figma-plugin/                  manifest.json, code.js, ui.html (v1, generic)
 projects/                      <name>.json settings (git-ignored except examples)
 captures/                      <project>-<timestamp>.json (git-ignored)
@@ -146,9 +153,13 @@ also `crawl(settings, opts)` for the panel.
 
 ## Control panel (`server.js` + `panel/`)
 
-Start: `start.bat` (Windows) or `start.command` (macOS) installs `playwright-core` on first run, then runs
-`node server.js --open`; `npm start` runs the server without opening the browser. If the panel is already
-running, the launcher just opens it.
+Start (D21): `Start (Windows).bat` or `Start (macOS).command` runs `node src/start.js`: the setup check on the
+first start (or when something changed), the icon questions once, then the server in the same process and window
+(`--open`); the window says it runs and how to stop it. Quit ends the process, so the window closes; closing the
+window stops html2frame too. The window shows, in colour (`src/term.js`: ANSI, none for a log file or with
+`NO_COLOR`), the version, the address and the keys: **Q** (or Ctrl+C) quits, asking for a second Q while a job runs;
+**O** opens the panel in the browser. `npm start` runs the server without opening the browser. If the
+panel is already running, it just opens it. It runs until Quit (`POST /api/quit`); there is no auto-stop.
 
 Single page, a top bar (busy indicator while a job runs, project picker, Save, which shows the state
 itself with no text beside it: quiet and disabled while everything is saved, filled in the warning colour while
@@ -157,22 +168,46 @@ when that fails; the project picker's list has the current project first, tinted
 top, then the others, then "+ New project", an action drawn as the list's footer and pinned to its bottom, so it
 is never a button beside Save; Save is not shown while no project is open: no projects yet, or the New project
 form), four numbered cards with optional sections between 2 and 3,
-and a footer ("html2frame · Help · MIT License · GitHub · © 2026 Ruben Vardanyan"; the Help page's without Help;
-`/license` serves `LICENSE`). The plugin window shows the licence line "MIT License · © 2026 Ruben Vardanyan ·
-GitHub"; its GitHub link
+and a footer ("html2frame · Help · Settings · About · GPL-3.0 License · GitHub · © 2026 Ruben Vardanyan"; each page leaves out itself;
+`/license` serves `LICENSE`, `/notice` serves `NOTICE`, D23). The plugin window shows the licence line "html2frame by Ruben Vardanyan · GPL-3.0 ·
+GitHub" (the author credit NOTICE requires); its GitHub link
 opens through `figma.openExternal`. Source files start with a one-line licence notice. The panel was redesigned
 in D20 (the old six-card panel is in git history). Every choice list is drawn like the project picker
 (`dropdown(select)` in `panel.js`: the `<select>` stays the source of truth). Narrow windows (checked from 320
 to 1920 px): the tables (page list, at least 900 px wide; Local storage and Replace text, at least 460 px) and
 the capture lists keep each cell on one line and slide sideways in their own box, never the page; a step editor
 opened under a page stays in the visible part of the list. Top bar: one line, the project's actions (picker,
-Save) then a thin line and the panel's own (Help, theme); below 900 px the subtitle goes so the line
-still fits. At 760 px and less a "⋯" button holds Help and the theme in a small menu (closes on a pick, a
-click outside, Escape or Tab); still one line down to 481 px. At 480 px and less, two rows: logo and name with
-a busy spinner and ⋯, then the picker across the
+Save) then a thin line and the panel's own: a "☰" (burger) button whose dropdown holds Help, Settings, Report a problem, Quit and the
+theme, at every width (closes on a pick, a click outside, Escape or Tab); below 900 px the subtitle goes so the line
+still fits; still one line down to 481 px. At 480 px and less, two rows: logo and name with
+a busy spinner and ☰, then the picker across the
 width with Save; while the page scrolls the first row goes and the second stays pinned (10 px from the top), so
 Save is always in view. The Help page's bar stays one line: below 481 px its way back is an arrow alone; at
 760 px and less it scrolls away with the page.
+
+Help, **Settings**, **Report a problem** (About → Report, D22) and **Quit** (D21) are in the ☰ dropdown with their icons
+(question mark, cog, flag, power), above the
+theme. A dot on ☰ and on Settings says an update is available. Quit
+asks first (`confirm`, naming a running job and unsaved changes), then the page shows "html2frame has stopped";
+the same card shows when the server does not answer when a page loads. The Settings page is built like Help
+(cards, the same bar with Settings as subtitle): **Version and updates** (version, ZIP or git, status, Update now
+with the job's progress and log, then it waits for a server with a new start time and reloads; a git folder that
+cannot update shows why and the command), **Setup check** (the saved results, Check again), **Icons**
+(checkboxes), **Appearance** (System / Light / Dark with words; the Help, Settings and About bars have no theme
+switch, only the panel's ☰ menu and this), **Figma plugin** (the manifest path, as on Help), **Stop html2frame** (Quit, Show the log file).
+When the server that answers is older than the page (it was started before the files changed: `/api/settings` or
+`/api/quit` gives 404), the page shows "Restart html2frame" with the steps instead of failing quietly.
+
+The **Help** page has a list of its sections ("On this page": Add the plugin to Figma with its four steps, Common
+problems, Report a problem): a sidebar that stays in view on wide screens, the section being read marked in blue
+(help.js, on scroll); at 760 px and less the same list above the cards, scrolling away with the page. The common problems
+are an accordion: a question opens its answer with a short slide (`prefers-reduced-motion`: none) and closes the one
+that was open; without the script `<details name="faq">` still keeps one open. The last one, "Something else is
+wrong", leads to About. **About** (footer link on every page): what html2frame is, version (→ Settings), author,
+the licence (GNU GPL v3 or later, with NOTICE's author credit, D23), the GitHub repo, and **Report a problem** (D22): "Your setup" (html2frame version and ZIP / git, the
+saved setup check without the folder and port lines, the browser the panel is shown in) with Copy, "Report a
+problem on GitHub" and "Suggest an idea" (GitHub issue forms, `.github/ISSUE_TEMPLATE/`, opened with "Your setup"
+filled in through the address: field id `environment`) and "See reported problems".
 
 1. **Project.** Name, Folder or Address, start page. "Browse…" asks the server for the system's folder window
    (`POST /api/pick-folder`: the Explorer-style IFileOpenDialog via PowerShell on Windows, `osascript choose
@@ -239,8 +274,15 @@ API (JSON):
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /api/info` | screen presets, examples, the running job, platform, port, the plugin's `manifest.json` path |
+| `GET /api/info` | screen presets, examples, the running job, platform, port, the plugin's `manifest.json` path, `version`, `updateAvailable`, `started` (changes on a restart) |
 | `POST /api/reveal-plugin` | shows `figma-plugin/manifest.json` in Explorer / Finder (Help page) |
+| `GET /api/settings` | the Settings page: version and update state, the saved setup check, the icons, the manifest path, the running job |
+| `POST /api/setup/check` | runs the setup check again (`src/setup.js`), saves it, returns the settings |
+| `POST /api/icons` | `{desktop?, menu?}` → adds or removes those icons; returns the settings (`error` when one failed) |
+| `POST /api/update/check` | looks for a new release now (GitHub's latest release; git installs also `git fetch --tags`) |
+| `POST /api/update` | `{job}`: downloads and checks the new version (or checks the git folder); when the job is done the server starts `src/update.js` from `.html2frame/update/` and quits; update.js replaces the files and starts the panel again |
+| `POST /api/reveal-logs` | shows the server log in Explorer / Finder |
+| `POST /api/quit` | stops the panel; while a job runs only with `?force=1` (else 409) |
 | `GET /api/projects` | list projects |
 | `POST /api/projects` | create `{name, source}` or copy `{example}` |
 | `GET/PUT/DELETE /api/projects/:name` | read, save, delete a project |
@@ -267,7 +309,7 @@ only and answers only requests addressed to `localhost:5600` / `127.0.0.1:5600` 
 Started from the prototype plugin (in git history before v1; removed with the InsureNow sample), which was proven: font resolution, frame, text, svg and image
 building.
 
-- **Input.** "Load latest from panel" (fetch `http://localhost:5600/api/captures/latest`) or a file picker.
+- **Input.** "Latest from panel" (fetch `http://localhost:5600/api/captures/latest`; when nothing answers: "html2frame is not running. Start it from its icon or the Start file…") or a file picker.
   Accept FORMAT v1 and prototype files.
 - **Selection.** Checkbox lists, **all unticked at first**: screen sizes (label and size, with a note that only
   captured sizes are listed), then languages/variants (or one list per dimension, e.g. Language and Theme, D15),
@@ -352,14 +394,14 @@ building.
    and 11 not linked. `--save` on the Fixture settings added nothing and kept all 15 pages, steps, dimensions
    and accounts.
 5. **Done.** `server.js` + panel. Check: start.bat → create a project for some static folder → find pages → capture →
-   plugin "Load latest from panel".
+   plugin "Latest from panel".
    Result (2026-10-07): an API test (21 checks: projects, examples, browse, test login, crawl and capture jobs
    over SSE, one job at a time, latest capture with CORS and private-network preflight, download, Host check,
    no files outside `panel/`) and the panel driven in Edge (open Fixture, edit screens, test login, folder
    browser, Find pages, untick pages, Capture → 4 frames, saved) all passed with no page errors. macOS:
    `start.command` (LF, adds Homebrew paths), browser opened with `open`, folder browser starts in the home
-   folder; `.gitattributes` keeps LF/CRLF per launcher. Not run on a Mac yet; `start.command` needs its
-   executable bit in git (`git update-index --chmod=+x start.command`).
+   folder; `.gitattributes` keeps LF/CRLF per launcher. Not run on a Mac yet; the macOS launcher has its
+   executable bit in git (mode 100755).
 6. **Done.** README: user guide with screenshots; `start.command` for macOS.
    Result (2026-10-07): README with requirements, install (Windows and macOS, Gatekeeper and `chmod`), the five
    panel cards, the Figma import (choices, layouts, Auto Layout), command line, what comes through and what does
@@ -372,6 +414,28 @@ building.
    computer; the only network access is the local panel). The owner submits it in the desktop app (Plugins →
    Manage plugins → Publish; two-factor authentication on) and puts the plugin ID Figma assigns into the
    manifest. Check: the published plugin imports a file and "Latest from panel" works.
+8. **Done (Windows; macOS to check).** Easier start, Settings and updates (D21): launchers renamed, `src/start.js`,
+   `setup.js`, `shortcut.js`, `update.js`, `local.js`, `check-node.js`; Settings page, Quit, update dot, "stopped"
+   screen; `assets/icon.ico` / `icon.icns` rendered from `assets/icon.svg`; README rewritten for it. Check: a fresh
+   copy → Start → check list, two icon questions, panel opens, the window stays with "is running", `check.json` written; second start
+   quick; started from inside the ZIP → "Extract the ZIP first"; old Node / old system / no browser / port taken
+   by another program → the message, nothing opens; icons add and remove from Settings and open the Start file;
+   Quit frees the port, ends a running capture and its browsers, closes the window and tells the other tabs; ZIP update (lowered version) → backup, files replaced, projects kept, restart and
+   reload; a forced failure puts the old version back; a git clone a few commits behind pulls, and an edited
+   file or another branch blocks it with the reason.
+   Result (2026-11-12, Windows 11, Node 24, Edge 157): all of the above passed. The check printed each item and
+   wrote `check.json`; `HTML2FRAME_FAKE_NODE=18`, `HTML2FRAME_FAKE_OS=win32:6.1` / `darwin:11.7`,
+   `HTML2FRAME_FAKE_NO_BROWSER=1` and a foreign listener on the port each gave their message (the port one names
+   the program and PID). Desktop and Start-menu shortcuts were created with the icon (they open the Start file),
+   and were removed. The real `Start (Windows).bat`: html2frame ran inside its cmd window; Quit ended it and the
+   window closed. Quit during a capture: the capture was cancelled and saved nothing, both headless Edge processes
+   ended, the port was free. Two panel tabs: Quit in one, the other showed "stopped" too and both closed. ZIP update of a 0.0.9 copy from GitHub `main` (1.3 MB): 69 files backed up, 71 copied,
+   `projects/` untouched, server back and the Settings page reloaded; a second update removed a dropped file and
+   kept a file of the user's; a read-only file no longer stops an update; `HTML2FRAME_FAKE_UPDATE_FAIL` put every
+   file back. Git: a clone 3 commits behind fast-forwarded; a changed `README.md` and the branch "other" were
+   refused with their reasons. Panel at 375 / 800 / 1200 px: one-line bar, ☰ menu with Help, Settings, Quit; no
+   sideways scroll on Settings and Help. `node test/mock-figma.js` passed. Not run on a Mac yet (`ditto`,
+   `html2frame.app`, closing the Terminal window).
 
 ## Verification (end-to-end)
 

@@ -1,4 +1,4 @@
-// html2frame — MIT License, © 2026 Ruben Vardanyan (see LICENSE)
+// html2frame — © 2026 Ruben Vardanyan, GNU GPL v3 or later (see LICENSE and NOTICE)
 // trash.js — moves files to the system's recycle bin / Trash (never deletes them), on Windows, macOS and Linux.
 // One helper process per call; the paths go in as data (environment or arguments), never into script text.
 const fs = require('fs');

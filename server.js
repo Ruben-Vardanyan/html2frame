@@ -1,9 +1,11 @@
-// html2frame — MIT License, © 2026 Ruben Vardanyan (see LICENSE)
+// html2frame — © 2026 Ruben Vardanyan, GNU GPL v3 or later (see LICENSE and NOTICE)
 // server.js — the html2frame control panel (D1): http://localhost:5600, bound to 127.0.0.1 only.
 // Serves panel/ and a small JSON API: projects, a folder browser, test logins, crawling ("Find pages") and
 // capturing as background jobs with live progress (Server-Sent Events) and Cancel, opening a page of the site,
 // and the capture files, including /api/captures/latest for the Figma plugin's "Latest from panel" (D7).
-// Usage: node server.js [--open] [--port 5600]
+// The Settings page (D21): quit, the setup check, the icons, the update check and the one-click update.
+// Usage: node server.js [--open] [--port 5600] [--log]   (--log: write to .html2frame/logs/server.log instead of the
+// window). The Start files run it through src/start.js, in their own window: closing the window stops html2frame.
 
 const http = require('http');
 const fs = require('fs');
@@ -16,6 +18,10 @@ const {resolveScreens, PRESETS} = require('./src/screens');
 const staticServer = require('./src/static-server');
 const {open} = require('./src/steps');
 const {trashFiles} = require('./src/trash');
+const local = require('./src/local');
+const shortcut = require('./src/shortcut');
+const update = require('./src/update');
+const term = require('./src/term');
 
 const ROOT = __dirname;
 const PROJECTS = path.join(ROOT, 'projects');
@@ -24,10 +30,28 @@ const PANEL = path.join(ROOT, 'panel');
 const PLUGIN_MANIFEST = path.join(ROOT, 'figma-plugin', 'manifest.json');
 const args = process.argv.slice(2);
 const PORT = Number((args[args.indexOf('--port') + 1] || '').match(/^\d+$/) ? args[args.indexOf('--port') + 1] : 5600);
+const STARTED = new Date().toISOString(); // a restart (after an update) changes it: the Settings page waits for that
 const HOSTS = new Set(['localhost:' + PORT, '127.0.0.1:' + PORT]);
 
 fs.mkdirSync(PROJECTS, {recursive: true});
 fs.mkdirSync(CAPTURES, {recursive: true});
+
+// --log: the output goes to a log file, kept small (for a start without a window, e.g. on Linux after an update)
+if (args.includes('--log')) {
+	const dir = local.file('logs');
+	const file = path.join(dir, 'server.log');
+	fs.mkdirSync(dir, {recursive: true});
+	try {
+		if (fs.statSync(file).size > 1e6) fs.renameSync(file, path.join(dir, 'server.old.log'));
+	} catch (e) {}
+	const out = fs.createWriteStream(file, {flags: 'a'});
+	const write = (...a) => out.write('[' + new Date().toISOString() + '] ' + require('util').format(...a) + '\n');
+	console.log = console.info = console.warn = console.error = write;
+	process.on('uncaughtException', e => {
+		write(e && e.stack || e);
+		out.end(() => process.exit(1));
+	});
+}
 
 // ---- helpers ----------------------------------------------------------------------------------------
 
@@ -426,7 +450,55 @@ async function api(req, res, url) {
 
 	if (parts[0] === 'info' && m === 'GET') {
 		return send(res, 200, {presets: PRESETS, running: running && {id: running.id, kind: running.kind, title: running.title}, examples: fs.readdirSync(path.join(ROOT, 'examples')).filter(f => f.endsWith('.settings.json')),
-			platform: process.platform, port: PORT, pluginManifest: PLUGIN_MANIFEST});
+			platform: process.platform, port: PORT, pluginManifest: PLUGIN_MANIFEST, version: local.version(), updateAvailable: update.info(ROOT).available, started: STARTED});
+	}
+
+	// ---- Settings page (D21) ----
+	if (parts[0] === 'settings' && m === 'GET') return send(res, 200, settingsInfo());
+	if (parts[0] === 'setup' && parts[1] === 'check' && m === 'POST') {
+		if (running) return fail(res, 409, 'Busy: ' + running.title + ' is still running.');
+		await require('./src/setup').runChecks();
+		return send(res, 200, settingsInfo());
+	}
+	if (parts[0] === 'icons' && m === 'POST') {
+		const body = await readBody(req);
+		const want = {};
+		for (const k of ['desktop', 'menu']) if (k in body) want[k] = !!body[k];
+		const errors = shortcut.apply(want);
+		local.writeState({icons: shortcut.status()});
+		return send(res, errors.length ? 500 : 200, Object.assign(settingsInfo(), errors.length ? {error: errors.join(' ')} : {}));
+	}
+	if (parts[0] === 'update' && parts[1] === 'check' && m === 'POST') {
+		await update.check(ROOT);
+		return send(res, 200, settingsInfo());
+	}
+	// the job downloads and checks the new version (or checks the git folder); when it is done the server hands
+	// over to update.js, which replaces the files and starts the panel again
+	if (parts[0] === 'update' && parts.length === 1 && m === 'POST') {
+		const job = startJob('update', 'Update', (emit, signal) => update.prepare(ROOT, emit, signal).then(prepared => {
+			job.prepared = prepared;
+			return {version: prepared.version};
+		}));
+		job.listeners.add(ev => {
+			if (ev && ev.type === 'done' && job.prepared) {
+				update.launchApply(ROOT, job.prepared, PORT);
+				setTimeout(() => process.exit(0), 300); // the panel gets "done" first
+			}
+		});
+		return send(res, 202, {job: job.id});
+	}
+	if (parts[0] === 'reveal-logs' && m === 'POST') {
+		const log = local.file(path.join('logs', 'server.log'));
+		reveal(fs.existsSync(log) ? log : local.file('setup.log'));
+		return send(res, 200, {});
+	}
+	// Quit: stops the panel. While a job runs only with ?force=1 (the panel asks first); the job's browser closes
+	// with the server (playwright closes the browsers it started)
+	if (parts[0] === 'quit' && m === 'POST') {
+		if (running && url.searchParams.get('force') !== '1') return fail(res, 409, running.title + ' is still running.');
+		send(res, 200, {quitting: true});
+		quit();
+		return;
 	}
 
 	// Help page: show the plugin's manifest.json in Explorer / Finder, for Figma's "Import plugin from manifest…"
@@ -628,9 +700,13 @@ const server = http.createServer(async (req, res) => {
 		return res.end();
 	}
 	try {
-		if (url.pathname.startsWith('/api/')) return await api(req, res, url);
+		if (url.pathname.startsWith('/api/')) {
+			pageAsked = true;
+			return await api(req, res, url);
+		}
 		if (req.method !== 'GET') return fail(res, 405, 'Method not allowed');
 		if (url.pathname === '/license') return send(res, 200, fs.readFileSync(path.join(ROOT, 'LICENSE'), 'utf8'));
+		if (url.pathname === '/notice') return send(res, 200, fs.readFileSync(path.join(ROOT, 'NOTICE'), 'utf8'));
 		// /assets/… (the icon) from the project's assets folder, /images/… (README screenshots, for the Help page)
 		// from docs/images; everything else from panel/
 		const dir = (url.pathname.match(/^\/(assets|images)\//) || [])[1];
@@ -658,6 +734,27 @@ function previewOrigin(folder) {
 	return previews.get(key).then(s => s.origin);
 }
 
+// Quit: a running job is cancelled and gets up to 5 s to close its browser, then the server ends (and with it the
+// Start file's window). Browsers that were still open then are closed by playwright when the process exits.
+function quit(how = 'Quit in the panel') {
+	console.log('\n  ' + term.bold(how + ': html2frame stops.'));
+	if (running && !running.abort.signal.aborted) running.abort.abort();
+	server.close();
+	const until = Date.now() + 5000;
+	(function wait() {
+		if (!running || Date.now() > until) process.exit(0);
+		else setTimeout(wait, 100);
+	})();
+}
+
+// what the Settings page shows: version and updates, the saved setup check, the icons, where the log is
+function settingsInfo() {
+	const names = shortcut.names();
+	return {version: local.version(), platform: process.platform, port: PORT, pluginManifest: PLUGIN_MANIFEST, update: update.info(ROOT),
+		check: local.readJson(local.file('check.json'), null), running: running && {id: running.id, kind: running.kind, title: running.title},
+		icons: {supported: shortcut.supported(), order: names.order, label: names.label, on: shortcut.status()}};
+}
+
 // selects the file in Explorer / Finder (Linux: opens its folder)
 function reveal(file) {
 	// Explorer wants /select,"path" exactly as written (Node's own quoting of the whole argument is not understood)
@@ -679,8 +776,53 @@ server.on('error', e => {
 	throw e;
 });
 
+// keys in html2frame's window: Q (or Ctrl+C) quits, O opens the panel. While a capture or Find pages runs, Q asks
+// to be pressed again (Ctrl+C does not ask: it is the terminal's own "stop now").
+function listenToKeys(u) {
+	if (!process.stdin.isTTY) return;
+	process.stdin.setRawMode(true);
+	process.stdin.setEncoding('utf8');
+	process.stdin.resume();
+	// the cursor waits after a "> " prompt, indented like the text above it; a message first clears that line
+	const prompt = '  ' + term.brand('>') + ' ';
+	const say = text => process.stdout.write('\r\x1b[2K' + text + '\n' + prompt);
+	process.stdout.write(prompt);
+	let asked = 0;
+	process.stdin.on('data', k => {
+		if (k === '\u0003') return quit('Ctrl+C');
+		const key = k.toLowerCase();
+		if (key === 'o') {
+			say('  Opening ' + term.link(u) + ' …');
+			return openBrowser(u);
+		}
+		if (key === 'q') {
+			if (running && Date.now() - asked > 5000) {
+				asked = Date.now();
+				return say('  ' + term.yellow(running.title + ' is running. Press Q again within 5 seconds to stop it and quit.'));
+			}
+			return quit('Q pressed');
+		}
+	});
+}
+
+// a Settings page that waits through an update asks for /api/info: then no second tab is opened (see listen)
+let pageAsked = false;
+
 server.listen(PORT, '127.0.0.1', () => {
 	const u = 'http://localhost:' + PORT;
-	console.log('html2frame control panel: ' + u + '  (Ctrl+C to stop)');
-	if (args.includes('--open')) openBrowser(u);
+	console.log('\n  ' + term.brand('html2frame') + ' ' + term.dim('v' + local.version()));
+	console.log('  ' + term.green('●') + ' Running at ' + term.link(u) + '\n');
+	console.log('  Keep this window open while you use html2frame.');
+	console.log('  To stop it: press ' + term.key(' Q ') + ' here, ' + term.bold('Quit') + ' in the panel, or close this window.');
+	console.log('  ' + term.key(' O ') + ' opens the panel in your browser again.\n');
+	listenToKeys(u);
+	// just after an update the old panel tab is still open and reloads by itself: wait a moment, and open the
+	// browser only when no page has asked for anything
+	const updated = Date.parse((local.readState().updated || {}).at || '');
+	if (args.includes('--open')) {
+		if (Date.now() - updated < 120000) setTimeout(() => { if (!pageAsked) openBrowser(u); }, 4000);
+		else openBrowser(u);
+	}
+	// the update check: once a week, in the background, never in the way (offline is fine)
+	if (update.checkDue(ROOT)) setTimeout(() => update.check(ROOT).catch(() => {}), 5000);
 });

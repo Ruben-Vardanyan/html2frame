@@ -8,6 +8,7 @@
 	<script src="theme.js"></script>
 	<link rel="icon" type="image/png" href="/assets/icon-64.png">
 	<link rel="icon" type="image/svg+xml" href="/assets/icon-adaptive.svg">
+	<script src="common.js" defer></script>
 	<script src="help.js" defer></script>
 </head>
 <body>
@@ -18,19 +19,28 @@
 				<div><div class="title">html2frame</div><div class="subtitle">Help</div></div>
 			</a>
 			<div class="top-links">
-				<div class="seg theme-switch" role="radiogroup" aria-label="Theme">
-					<label title="Same as your system"><input type="radio" name="theme" value="system" aria-label="System theme"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.75" y="2.75" width="12.5" height="8.5" rx="1.5"/><path d="M5.5 14h5M8 11.5V14" stroke-linecap="round"/></svg></label>
-					<label title="Light"><input type="radio" name="theme" value="light" aria-label="Light theme"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1"/></svg></label>
-					<label title="Dark"><input type="radio" name="theme" value="dark" aria-label="Dark theme"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M13.5 9.6A5.75 5.75 0 0 1 6.4 2.5a5.75 5.75 0 1 0 7.1 7.1z"/></svg></label>
-				</div>
-				<!-- on a narrow screen only the arrow shows; the words stay for screen readers and in the tooltip -->
+				<!-- on a narrow screen only the icons show; the words stay for screen readers and in the tooltip -->
+				<a class="btn ghost top-btn" href="settings.html" title="Settings: updates, icons, setup check" data-update-dot><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span class="top-btn-text">Settings</span></a>
 				<a class="btn ghost back-btn" href="/" title="Back to the panel"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7H2.5M6.5 3L2.5 7l4 4"/></svg><span class="back-text">Back to the panel</span></a>
 			</div>
 		</div>
 	</header>
 
-	<main class="help-page">
-		<section class="card">
+	<main class="help-page help-with-nav">
+		<!-- the page's sections: a sidebar on wide screens (the one in view is marked: help.js), a short list at the top
+		     on narrow ones -->
+		<nav class="help-nav" aria-label="On this page">
+			<span class="help-nav-title">On this page</span>
+			<a href="#plugin">Add the plugin to Figma</a>
+			<a class="sub" href="#step-app">Install the Figma desktop app</a>
+			<a class="sub" href="#step-file">Open a design file</a>
+			<a class="sub" href="#step-manifest">Import the plugin</a>
+			<a class="sub" href="#step-run">Run it</a>
+			<a href="#problems">Common problems</a>
+			<a href="about.html#report">Report a problem</a>
+		</nav>
+		<div class="help-content">
+		<section class="card" id="plugin">
 			<h1>Add the html2frame plugin to Figma</h1>
 			<p class="muted">You do this <b>once</b> per computer. Afterwards the plugin stays under Plugins → Development, and
 				the panel's captures come into Figma with one click.</p>
@@ -40,18 +50,18 @@
 			</div>
 
 			<ol class="steps">
-				<li>
+				<li id="step-app">
 					<h2>Install the Figma desktop app</h2>
 					<p>Download it from <a href="https://www.figma.com/downloads/" target="_blank" rel="noopener">figma.com/downloads</a>
 						and sign in. Any plan works, the free one too. Figma in the browser can't load plugins from your
 						computer, so it has to be the desktop app.</p>
 				</li>
-				<li>
+				<li id="step-file">
 					<h2>Open a design file</h2>
 					<p>Open any <b>Design</b> file, or create one (<b>+ Create</b> → <b>Design</b>). The plugin menus only show
 						inside a design file, not on the home screen or in FigJam and Slides.</p>
 				</li>
-				<li>
+				<li id="step-manifest">
 					<h2>Import the plugin from its manifest</h2>
 					<p data-os="win">Click the <b>Figma menu</b> (the Figma logo at the top left), then
 						<b>Plugins → Development → Import plugin from manifest…</b></p>
@@ -72,41 +82,70 @@
 						in Figma's window, paste the path and press Enter.</p>
 					<p>Figma now lists <b>html2frame</b> under Plugins → Development.</p>
 				</li>
-				<li>
+				<li id="step-run">
 					<h2>Run it</h2>
 					<p><b>Plugins → Development → html2frame</b>, then <b>Latest from panel</b> (or <b>Choose file</b> for a
 						capture file somebody sent you). Tick the screen sizes, languages and themes, and groups to import
 						(nothing is ticked at first; the button shows how many frames you will get), choose the layout, and click
 						<b>Import</b>.</p>
-					<img class="shot" src="/images/plugin.png" alt="The html2frame plugin window in Figma" width="380" height="600">
+					<!-- the plugin in the panel's theme: one picture for light, one for dark (panel.css shows the right one) -->
+					<img class="shot shot-light" src="/images/plugin.png" alt="The html2frame plugin window in Figma" width="380" height="600" loading="lazy">
+					<img class="shot shot-dark" src="/images/plugin-dark.png" alt="The html2frame plugin window in Figma" width="380" height="600" loading="lazy">
 				</li>
 			</ol>
 		</section>
 
-		<section class="card">
-			<h2>If something doesn't work</h2>
-			<dl class="faq">
-				<dt>There is no “Development” menu, or “Import plugin from manifest…” is missing</dt>
-				<dd>You are in Figma in the browser, on the home screen, or in a FigJam or Slides file. Open a Design file
-					in the desktop app.</dd>
-				<dt>“Latest from panel” says it can't reach the panel</dt>
-				<dd>This panel has to be running (keep its window open) at <code>http://localhost:5600</code>, the only
-					address the plugin may load from. <span id="portWarning" class="warn-text" hidden></span>
-					Or save the capture with <b>Download JSON</b> and use <b>Choose file</b> in the plugin.</dd>
-				<dt>You moved or renamed the html2frame folder</dt>
-				<dd>Figma remembers where the manifest was. Import it again from the new place (step 3).</dd>
-				<dt>You updated html2frame</dt>
-				<dd>Nothing to do: Figma loads the plugin from the folder each time you run it.</dd>
-				<dt>You want to remove the plugin</dt>
-				<dd><b>Plugins → Development → Manage plugins in development</b>, then remove html2frame from the list.</dd>
-			</dl>
+		<section class="card" id="problems">
+			<h2>Common problems</h2>
+			<!-- one answer open at a time: details name="faq" (help.js does the same where the browser does not) -->
+			<div class="faq" id="faq">
+				<details name="faq">
+					<summary>There is no “Development” menu, or “Import plugin from manifest…” is missing</summary>
+					<div class="answer">You are in Figma in the browser, on the home screen, or in a FigJam or Slides file. Open a Design file
+						in the desktop app.</div>
+				</details>
+				<details name="faq">
+					<summary>“Latest from panel” says html2frame is not running, or can't reach the panel</summary>
+					<div class="answer">html2frame has to be running at <code>http://localhost:5600</code>, the only address the plugin may load
+						from: start it from its icon or with the Start file. It keeps running until you press <b>Quit</b>.
+						<span id="portWarning" class="warn-text" hidden></span>
+						Or save the capture with <b>Download JSON</b> and use <b>Choose file</b> in the plugin.</div>
+				</details>
+				<details name="faq">
+					<summary>html2frame does not start</summary>
+					<div class="answer">Double-click the Start file in the html2frame folder (<b>Start (Windows)</b> or <b>Start (macOS)</b>): it
+						checks this computer and says what is missing, for example Node.js 20 or newer, or Edge or Chrome.
+						<a href="settings.html">Settings</a> shows the last check.</div>
+				</details>
+				<details name="faq">
+					<summary>You moved or renamed the html2frame folder</summary>
+					<div class="answer">Figma remembers where the manifest was. Import it again from the new place (step 3).</div>
+				</details>
+				<details name="faq">
+					<summary>You updated html2frame</summary>
+					<div class="answer">Nothing to do: Figma loads the plugin from the folder each time you run it. Updates are in
+						<a href="settings.html">Settings</a>.</div>
+				</details>
+				<details name="faq">
+					<summary>You want to remove the plugin</summary>
+					<div class="answer"><b>Plugins → Development → Manage plugins in development</b>, then remove html2frame from the list.</div>
+				</details>
+				<details name="faq">
+					<summary>Something else is wrong</summary>
+					<div class="answer">Tell us on GitHub: <a href="about.html#report">About → Report a problem</a> opens a report with
+						your setup filled in.</div>
+				</details>
+			</div>
 		</section>
+		</div>
 	</main>
 
 	<footer class="foot">
 		<span>html2frame</span>
 		<span>·</span>
-		<a href="/license" target="_blank" rel="noopener">MIT License</a>
+		<a href="about.html">About</a>
+		<span>·</span>
+		<a href="/license" target="_blank" rel="noopener">GPL-3.0 License</a>
 		<span>·</span>
 		<a href="https://github.com/Ruben-Vardanyan/html2frame" target="_blank" rel="noopener">GitHub</a>
 		<span>·</span>

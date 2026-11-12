@@ -1,4 +1,4 @@
-// html2frame — MIT License, © 2026 Ruben Vardanyan (see LICENSE)
+// html2frame — © 2026 Ruben Vardanyan, GNU GPL v3 or later (see LICENSE and NOTICE)
 // code.js — html2frame Figma plugin (v1). Rebuilds captures (docs/FORMAT.md) as frames, text, vectors and
 // images. All screens on the current page (D14) or one Figma page per screen (D4); Sections per screen with one
 // row per group (default), per group with one row per screen, or per group and screen (D19); frames named

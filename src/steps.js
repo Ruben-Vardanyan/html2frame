@@ -1,4 +1,4 @@
-// html2frame — MIT License, © 2026 Ruben Vardanyan (see LICENSE)
+// html2frame — © 2026 Ruben Vardanyan, GNU GPL v3 or later (see LICENSE and NOTICE)
 // steps.js — runs a list of steps (goto, click, fill, …) on a Playwright page.
 // Used for account logins and for page states (D5, D8). Vocabulary: docs/PLAN.md "Steps vocabulary".
 

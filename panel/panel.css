@@ -304,14 +304,57 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .path-actions { display: flex; gap: 6px; }
 kbd { font: 11px ui-monospace, Consolas, monospace; padding: 1px 5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; background: var(--card); }
 .shot { display: block; max-width: 100%; height: auto; margin-top: 10px; border: 1px solid var(--line); border-radius: var(--radius); }
-.faq dt { font-weight: 600; margin-top: 12px; }
-.faq dd { margin: 4px 0 0; color: var(--text-2); max-width: 720px; }
+/* a picture in light and dark: the one for the panel's theme (the same rules as the colours above) */
+.shot-dark { display: none; }
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) .shot-dark { display: block; }
+	:root:not([data-theme="light"]) .shot-light { display: none; }
+}
+:root[data-theme="dark"] .shot-dark { display: block; }
+:root[data-theme="dark"] .shot-light { display: none; }
+/* Help page: the sections in a sidebar that stays in view (wide screens), the one being read marked in blue;
+   at 760 px and less the same list, above the cards (it scrolls away with the page) */
+.help-with-nav { display: grid; grid-template-columns: 210px minmax(0, 1fr); align-items: start; gap: 16px; }
+.help-content { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.help-nav { position: sticky; top: 80px; display: flex; flex-direction: column; gap: 2px; padding: 12px 8px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; }
+.help-nav-title { padding: 2px 10px 6px; color: var(--text-2); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+.help-nav a { padding: 6px 10px; border-radius: 8px; color: var(--text); font-weight: 500; }
+.help-nav a.sub { padding: 4px 10px 4px 22px; color: var(--text-2); font-size: 12px; font-weight: 400; }
+.help-nav a:hover { background: var(--hover); text-decoration: none; }
+.help-nav a[aria-current="true"] { background: var(--brand-soft); color: var(--brand); }
+.help-nav a:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.help-with-nav [id] { scroll-margin-top: 80px; } /* a link lands below the sticky top bar */
+@media (prefers-reduced-motion: no-preference) { html:has(.help-with-nav) { scroll-behavior: smooth; } }
+@media (max-width: 760px) {
+	.help-with-nav { grid-template-columns: minmax(0, 1fr); }
+	.help-nav { position: static; }
+	.help-with-nav [id] { scroll-margin-top: 12px; } /* the top bar scrolls away here */
+}
+/* problems on the Help page: a question opens its answer and closes the one that was open */
+.faq { margin-top: 8px; }
+.faq details { border-top: 1px solid var(--line); }
+.faq details:first-child { border-top: 0; }
+.faq summary { display: flex; align-items: center; gap: 8px; padding: 11px 6px; border-radius: 8px; cursor: pointer; list-style: none; font-weight: 600; user-select: none; -webkit-user-select: none; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary:hover { background: var(--hover); }
+.faq summary:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.faq summary::before { content: ""; flex: none; width: 16px; height: 16px; background: var(--text-2); transition: transform .15s;
+	-webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4.5 3l3 3-3 3'/%3E%3C/svg%3E") center / 16px 16px no-repeat;
+	mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4.5 3l3 3-3 3'/%3E%3C/svg%3E") center / 16px 16px no-repeat; }
+.faq details[open] > summary::before { transform: rotate(90deg); }
+.faq details[open] > summary { margin-bottom: 6px; } /* a gap between the open question and its answer */
+.faq .answer { padding: 0 6px 14px 30px; color: var(--text-2); max-width: 750px; overflow: hidden; } /* help.js animates its height */
+.faq .answer::after { content: ""; display: block; height: 0; } /* nothing sticks out while it folds */
 .warn-text { color: var(--warn); font-weight: 500; }
 .top-links { display: flex; align-items: center; gap: 8px; }
 /* theme switch: System / Light / Dark icons in the top bar */
 .theme-switch label { padding: 0; width: 32px; height: 32px; justify-content: center; color: var(--text-2); }
 .theme-switch label:hover { background: var(--hover); color: var(--text); }
 .theme-switch label:has(input:focus-visible) { outline: 2px solid var(--brand); outline-offset: -2px; }
+/* Settings → Appearance: the same switch with words (System / Light / Dark) */
+.theme-choice { margin-top: 10px; }
+.theme-choice label { width: auto; height: 34px; padding: 0 16px; gap: 8px; }
+.theme-choice label svg { flex: none; }
 
 /* folder browser */
 dialog { width: min(560px, 92vw); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; background: var(--card); color: var(--text); }
@@ -550,19 +593,27 @@ table.kv th { white-space: nowrap; }
 .table-wrap { container-type: inline-size; }
 .pages.grouped tr.steps-row > td:last-child > * { position: sticky; left: 8px; max-width: calc(100cqw - 110px); }
 /* ---- top bar ------------------------------------------------------------------------------------------
-   Wide: one line. Brand | project picker, Save | Help, theme (a thin line between the project's
-   actions and the panel's own). Below 900 px the subtitle goes, so the line still fits.
-   760 px and less: Help and the theme sit behind ⋯ as a small menu (they are rarely needed); still one line
-   down to 481 px. 480 px and less, two rows:  logo + name ........ [busy] [⋯]
+   Wide: one line. Brand | project picker, Save | ☰ (a thin line between the project's actions and the
+   panel's own). ☰ opens a dropdown with Help, Settings, Quit and the theme, at every width (they are rarely
+   needed). Below 900 px the subtitle goes, so the line still fits. Still one line down to 481 px.
+   480 px and less, two rows:                  logo + name ........ [busy] [☰]
                                                [ project picker ▾ ]     [Save]
    While the page scrolls, the first row goes and the second stays pinned, so Save (amber while something is
    unsaved) is always in view. */
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .top-inner > .project-bar { margin-left: auto; } /* the project's actions sit beside Help and the theme, on the right */
-.top-more { display: flex; align-items: center; gap: 8px; padding-left: 16px; border-left: 1px solid var(--line); }
-.more-btn { display: none; }
-.more-menu { display: contents; }
-.more-label { display: none; }
+.top-more { position: relative; display: flex; align-items: center; padding-left: 16px; border-left: 1px solid var(--line); }
+.more-btn { display: inline-flex; align-items: center; justify-content: center; width: 34px; padding: 0; }
+.top-more.open .more-btn { background: var(--hover); }
+/* the dropdown: under ☰, at its right edge */
+.more-menu { display: none; position: absolute; z-index: 40; top: calc(100% + 6px); right: 0; width: 220px; padding: 6px; flex-direction: column; align-items: stretch; gap: 2px;
+	background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0, 0, 0, .16); }
+.top-more.open .more-menu { display: flex; }
+.more-menu > .btn { justify-content: flex-start; display: flex; align-items: center; height: 34px; border: 0; background: transparent; font-weight: 500; }
+.more-menu > .btn:hover { background: var(--hover); text-decoration: none; }
+.more-label { display: block; padding: 8px 14px 4px; border-top: 1px solid var(--line); margin-top: 4px; color: var(--text-2); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+.more-menu .theme-switch { margin: 0 8px 6px; width: auto; }
+.more-menu .theme-switch label { flex: 1; }
 @media (max-width: 900px) {
 	.brand:not(.plain) .subtitle { display: none; } /* the Help page keeps its "Help" */
 	.picker-btn { min-width: 150px; }
@@ -586,21 +637,11 @@ table.kv th { white-space: nowrap; }
 	.top-inner .project-pick .picker-btn { width: 100%; max-width: none; min-width: 0; }
 	.top-inner #saveProject { grid-area: save; }
 	/* its column is as wide as Save below it: keep the button on the right edge, in line with Save's */
-	.top-more { grid-area: more; justify-self: end; position: relative; padding: 0; border: 0; }
-	.more-btn { display: inline-flex; align-items: center; justify-content: center; width: 34px; padding: 0; }
-	.top-more.open .more-btn { background: var(--hover); }
-	.more-menu { display: none; position: absolute; z-index: 40; top: calc(100% + 6px); right: 0; width: 220px; padding: 6px; flex-direction: column; align-items: stretch; gap: 2px;
-		background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0, 0, 0, .16); }
-	.top-more.open .more-menu { display: flex; }
-	.more-menu > .btn { justify-content: flex-start; display: flex; align-items: center; height: 34px; border: 0; background: transparent; font-weight: 500; }
-	.more-menu > .btn:hover { background: var(--hover); text-decoration: none; }
-	.more-label { display: block; padding: 8px 14px 4px; border-top: 1px solid var(--line); margin-top: 4px; color: var(--text-2); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
-	.more-menu .theme-switch { margin: 0 8px 6px; width: auto; }
-	.more-menu .theme-switch label { flex: 1; }
+	.top-more { grid-area: more; justify-self: end; padding: 0; border: 0; }
 	/* the step editor uses the list's whole visible width: out over the handle and tick columns */
 	.pages.grouped tr.steps-row > td:last-child > * { margin-left: -80px; max-width: calc(100cqw - 24px); }
 }
-/* 481–760 px: room enough for one line with ⋯:  logo + name ...... [busy] [ picker ▾ ] [Save] [⋯]
+/* 481–760 px: room enough for one line with ☰:  logo + name ...... [busy] [ picker ▾ ] [Save] [☰]
    (the picker grows up to 320 px; the space left goes between the name and the picker). One row, so the whole
    bar stays pinned. */
 @media (min-width: 481px) and (max-width: 760px) {
@@ -617,11 +658,51 @@ body:has(#projectView[hidden]) #saveProject { display: none; }
 	.top:has(.project-pick[hidden]) { top: 0; }
 	.top-inner:has(.project-pick[hidden]) { grid-template-areas: "brand busy more"; }
 }
-/* the Help page's way back: an arrow and words; on a narrow screen the arrow alone, so its bar stays one line
-   (the words stay for screen readers) */
-.back-btn { display: inline-flex; align-items: center; gap: 6px; }
-.back-btn svg { flex: none; }
+/* the Help and Settings pages' buttons in the bar (back, Settings): an icon and words; on a narrow screen the icon
+   alone, so the bar stays one line (the words stay for screen readers) */
+.back-btn, .top-btn { display: inline-flex; align-items: center; gap: 6px; position: relative; }
+.back-btn svg, .top-btn svg { flex: none; }
+/* with the words beside them, the icons centre on the capital letters (the line box's centre is 1px higher) */
+@media (min-width: 481px) { .back-btn svg, .top-btn svg { transform: translateY(1px); } }
 @media (max-width: 480px) {
-	.back-btn { width: 34px; padding: 0; justify-content: center; }
-	.back-text { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+	.back-btn, .top-btn { width: 34px; padding: 0; justify-content: center; }
+	.back-text, .top-btn-text { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
+
+/* ---- D21: Quit, the update dot, the Settings page, the "stopped" screen ---- */
+/* Help, Settings, Quit in the ☰ dropdown: an icon and the word on one line (Quit is a <button>, which does not
+   get a.btn's flex) */
+.bar-btn { display: inline-flex; align-items: center; gap: 10px; }
+.bar-btn svg { flex: none; transform: translateY(1px); } /* centred on the capital letters, not on the line box (1px higher) */
+/* update available: a small dot on ☰ (at its corner) and on Settings in the dropdown (at the end of its line) */
+.dot { display: inline-block; width: 8px; height: 8px; margin-left: 6px; border-radius: 50%; background: var(--brand); flex: none; }
+.more-btn, .top-btn { position: relative; }
+.more-btn .dot, .top-btn .dot { position: absolute; top: 4px; right: 4px; margin: 0; box-shadow: 0 0 0 2px var(--card); }
+.top-btn .dot { top: 3px; right: 3px; }
+.bar-icon .dot { margin-left: auto; }
+.settings-page h1 { font-size: 15px; margin: 0; }
+.settings-page p { margin: 6px 0; }
+.settings-page .card-head { margin-bottom: 4px; }
+.settings-page .job { margin: 12px 0 0; }
+.update-progress { margin-top: 8px; min-width: 0; }
+.notes-box { margin: 8px 0 4px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-2); }
+.notes-box summary { cursor: pointer; font-weight: 600; }
+.notes { margin: 8px 0; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 260px; overflow: auto; color: var(--text-2); }
+.checks { list-style: none; margin: 6px 0 0; padding: 0; }
+.checks li { padding: 7px 2px; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.checks li:first-child { border-top: 0; }
+.checks .fix { display: block; margin-top: 2px; color: var(--text-2); font-size: 12px; }
+.icon-checks { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-top: 8px; }
+/* About page: the facts as label / value rows, the setup text as it will be sent */
+.facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin: 12px 0 0; }
+.facts dt { color: var(--text-2); }
+.facts dd { margin: 0; overflow-wrap: anywhere; }
+.setup-text { white-space: pre-wrap; }
+.about-page h3 { margin-top: 14px; }
+/* after Quit, or when the server is not running: one card instead of the page */
+.stopped-card { max-width: 560px; margin: 40px auto; text-align: center; padding: 32px 24px; }
+.stopped-card h1 { margin: 0 0 8px; font-size: 18px; font-weight: 600; }
+.stopped-card p { margin: 0 auto 16px; }
+body.stopped .project-bar, body.stopped .more-menu > .btn, body.stopped .top-links > .top-btn { display: none; }
+body.stopped .top-more { padding-left: 0; border-left: 0; }
+body.stopped .foot { display: none; } /* its links lead to pages of the stopped server */

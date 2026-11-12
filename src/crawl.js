@@ -1,4 +1,4 @@
-// html2frame — MIT License, © 2026 Ruben Vardanyan (see LICENSE)
+// html2frame — © 2026 Ruben Vardanyan, GNU GPL v3 or later (see LICENSE and NOTICE)
 // crawl.js — finds a site's pages by following its links in a real browser (D2, D5).
 // Breadth-first from `start`, same origin only, reading links from the rendered DOM (so links added by
 // JavaScript count). Runs once as a guest, then once per test account after its login: pages first seen

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>About — html2frame</title>
+	<link rel="stylesheet" href="panel.css">
+	<script src="theme.js"></script>
+	<link rel="icon" type="image/png" href="/assets/icon-64.png">
+	<link rel="icon" type="image/svg+xml" href="/assets/icon-adaptive.svg">
+	<script src="common.js" defer></script>
+	<script src="about.js" defer></script>
+</head>
+<body>
+	<header class="top">
+		<div class="top-inner">
+			<a class="brand plain" href="/">
+				<svg class="logo" viewBox="0 0 128 128" width="40" height="40" role="img" aria-label="html2frame icon"><rect x="26" y="26" width="76" height="76" fill="none" stroke="#E2554F" stroke-width="3.5"/><g style="fill: var(--card)" stroke="#E2554F" stroke-width="3.5"><rect x="21" y="21" width="10" height="10"/><rect x="97" y="21" width="10" height="10"/><rect x="21" y="97" width="10" height="10"/><rect x="97" y="97" width="10" height="10"/></g><path style="stroke: var(--text)" d="M50 49 L37 64 L50 79 M78 49 L91 64 L78 79 M69 45 L59 83" fill="none" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+				<div><div class="title">html2frame</div><div class="subtitle">About</div></div>
+			</a>
+			<div class="top-links">
+				<!-- on a narrow screen only the arrow shows; the words stay for screen readers and in the tooltip -->
+				<a class="btn ghost back-btn" href="/" title="Back to the panel"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7H2.5M6.5 3L2.5 7l4 4"/></svg><span class="back-text">Back to the panel</span></a>
+			</div>
+		</div>
+	</header>
+
+	<main class="help-page about-page">
+		<section class="card" aria-labelledby="aboutTitle">
+			<h1 id="aboutTitle">About html2frame</h1>
+			<p>html2frame turns the pages of a website into editable Figma designs: real frames, text layers, vectors and
+				images, at the screen sizes you choose, in every language and theme of the site. Everything runs on your
+				computer; your site, its test logins and the captures never leave it.</p>
+			<dl class="facts">
+				<dt>Version</dt><dd><span id="version">…</span> · <a href="settings.html">updates</a></dd>
+				<dt>Made by</dt><dd>Ruben Vardanyan</dd>
+				<dt>License</dt><dd><a href="/license" target="_blank" rel="noopener">GNU GPL v3</a> or later: free to use, change, share and
+					sell. Whoever passes html2frame on, changed or not, must share its full source code under the same license and keep
+					the credit "html2frame by Ruben Vardanyan" with its link (<a href="/notice" target="_blank" rel="noopener">NOTICE</a>).</dd>
+				<dt>Source</dt><dd><a href="https://github.com/Ruben-Vardanyan/html2frame" target="_blank" rel="noopener">github.com/Ruben-Vardanyan/html2frame</a></dd>
+			</dl>
+		</section>
+
+		<section class="card" id="report" aria-labelledby="reportTitle">
+			<h2 id="reportTitle">Report a problem</h2>
+			<p>First look at the <a href="help.html#problems">usual problems</a> on the Help page. Still stuck? Report it on
+				GitHub: the button opens a new report with your setup already filled in. Say what you did and what went
+				wrong, and add a screenshot if you can. You need a free GitHub account.</p>
+			<p class="muted small">Don't paste passwords, and don't attach pages or captures that must stay private:
+				reports on GitHub are public.</p>
+			<h3>Your setup <span class="muted small">(sent with the report: no folder paths, projects or passwords)</span></h3>
+			<div class="path-box">
+				<code class="setup-text" id="setup">…</code>
+				<div class="path-actions"><button class="btn ghost small" id="copySetup" type="button">Copy</button></div>
+			</div>
+			<div class="row-actions">
+				<a class="btn" id="reportLink" href="https://github.com/Ruben-Vardanyan/html2frame/issues/new?template=bug_report.yml" target="_blank" rel="noopener">Report a problem on GitHub</a>
+				<a class="btn ghost" id="ideaLink" href="https://github.com/Ruben-Vardanyan/html2frame/issues/new?template=idea.yml" target="_blank" rel="noopener">Suggest an idea</a>
+				<a class="link" href="https://github.com/Ruben-Vardanyan/html2frame/issues" target="_blank" rel="noopener">See reported problems</a>
+			</div>
+		</section>
+	</main>
+
+	<footer class="foot">
+		<span>html2frame</span>
+		<span>·</span>
+		<a href="help.html">Help</a>
+		<span>·</span>
+		<a href="settings.html">Settings</a>
+		<span>·</span>
+		<a href="/license" target="_blank" rel="noopener">GPL-3.0 License</a>
+		<span>·</span>
+		<a href="https://github.com/Ruben-Vardanyan/html2frame" target="_blank" rel="noopener">GitHub</a>
+		<span>·</span>
+		<span>© 2026 Ruben Vardanyan</span>
+	</footer>
+</body>
+</html>
