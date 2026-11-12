@@ -660,6 +660,10 @@ async function capture(settings, opts = {}) {
 	for (const a of settings.accounts || []) accounts[a.name] = a;
 	let pages = (settings.pages || []).filter(p => !p.skip);
 	if (opts.pages && opts.pages.length) pages = pages.filter(p => opts.pages.includes(p.name));
+	// Captured group by group: the groups in the order they first appear in the list, and inside a group the
+	// pages in list order. A list that already keeps each group together is captured exactly as written.
+	const groupKey = p => p.group || p.account || 'Pages'; // as the capture names the group below
+	pages = [...new Set(pages.map(groupKey))].flatMap(g => pages.filter(p => groupKey(p) === g));
 	if (!pages.length) throw new Error('No pages to capture.');
 
 	const source = settings.source || {};

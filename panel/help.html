@@ -23,7 +23,8 @@
 					<label title="Light"><input type="radio" name="theme" value="light" aria-label="Light theme"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1"/></svg></label>
 					<label title="Dark"><input type="radio" name="theme" value="dark" aria-label="Dark theme"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M13.5 9.6A5.75 5.75 0 0 1 6.4 2.5a5.75 5.75 0 1 0 7.1 7.1z"/></svg></label>
 				</div>
-				<a class="btn ghost" href="/">← Back to the panel</a>
+				<!-- on a narrow screen only the arrow shows; the words stay for screen readers and in the tooltip -->
+				<a class="btn ghost back-btn" href="/" title="Back to the panel"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7H2.5M6.5 3L2.5 7l4 4"/></svg><span class="back-text">Back to the panel</span></a>
 			</div>
 		</div>
 	</header>
@@ -74,7 +75,9 @@
 				<li>
 					<h2>Run it</h2>
 					<p><b>Plugins → Development → html2frame</b>, then <b>Latest from panel</b> (or <b>Choose file</b> for a
-						capture file somebody sent you). Pick the screen sizes and variants, and click <b>Import</b>.</p>
+						capture file somebody sent you). Tick the screen sizes, languages and themes, and groups to import
+						(nothing is ticked at first; the button shows how many frames you will get), choose the layout, and click
+						<b>Import</b>.</p>
 					<img class="shot" src="/images/plugin.png" alt="The html2frame plugin window in Figma" width="380" height="600">
 				</li>
 			</ol>
@@ -105,9 +108,9 @@
 		<span>·</span>
 		<a href="/license" target="_blank" rel="noopener">MIT License</a>
 		<span>·</span>
-		<span>© 2026 Ruben Vardanyan</span>
-		<span>·</span>
 		<a href="https://github.com/Ruben-Vardanyan/html2frame" target="_blank" rel="noopener">GitHub</a>
+		<span>·</span>
+		<span>© 2026 Ruben Vardanyan</span>
 	</footer>
 </body>
 </html>

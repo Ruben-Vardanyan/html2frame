@@ -54,59 +54,66 @@ that is painted, and the plugin rebuilds it in Figma node by node.
 
 ## Capture a site with the control panel
 
-The panel is one page with six numbered cards. Changes are saved with **Save** (capturing saves too). The
-switch at the top right picks the panel's look: the same as your system, light or dark.
+The panel is one page with four numbered cards, and between cards 2 and 3 a few optional sections that stay
+closed until your site needs them. Changes are saved with **Save**, which turns amber while something is not
+saved yet (capturing saves too). The switch at the top right picks the panel's look: the same as your system,
+light or dark. In a narrow window (a phone, a small tablet) Help and that switch are under the **⋯** button.
 
 ![The control panel: project and screen sizes](docs/images/panel-overview.png)
 
-**1. Project.** Click **+ New**, give the project a name and choose the **folder** with your HTML files
+**1. Project.** Open the project list at the top and choose **+ New project** (its last line), give the project
+a name and choose the **folder** with your HTML files
 (**Browse…** opens your system's folder window: Explorer on Windows, Finder on macOS) or the **address** of a
-running site. **Delete project** moves the project file to `projects/deleted/`, from where you can bring it
-back.
-
-- *Start page*: where finding pages begins (usually `/index.html`).
-- *Advanced → Ready when*: for sites that draw their content with JavaScript, a condition that is true when the
-  page is finished, e.g. `!document.documentElement.classList.contains('loading')`. Leave it empty if unsure.
-- *Advanced → Replace text*: e.g. `֏=AMD` when a font in Figma lacks a character.
+running site. *Start page* is where finding pages begins (usually `/index.html`). **Delete project** moves the
+project file to `projects/deleted/`, from where you can bring it back.
 
 **2. Screen sizes.** Tick the sizes you want: desktop HD, desktop, laptops, tablets and phones, plus custom
 sizes. For phones and tablets choose **portrait**, **landscape** or **both**; they are captured as touch devices.
 
-**3. Languages, themes & test accounts.**
+**Optional sections.** Each one shows in its closed row what is set; open only what your site needs.
 
 ![Languages, themes and a test account](docs/images/panel-languages.png)
 
-- A **dimension** is something the site can switch, such as *Language* or *Theme*. Each option says how: a
-  `localStorage` value, a cookie, or an address parameter (`?lang=hy`), written as `key=value`. Every
-  combination is captured: 2 languages × 2 themes = 4 versions of each page.
-- A **test account** logs in before the pages that need it. Enter the login page and click **Detect fields**:
-  html2frame opens the page and fills in the e-mail field, password field and submit button for you. Then type
-  the e-mail and password, and optionally a piece of the address you land on after logging in. **Test login**
-  shows where it landed, with a screenshot. For special logins (extra fields, two steps), switch the account to
-  **Steps (JSON)**. Passwords stay in the project file on your computer (`projects/*.json`, never uploaded and
-  not committed to git).
+- **Languages and themes**: something the site can switch, such as *Language* or *Theme*. Say how the site
+  switches it (by localStorage, a cookie or the address, and under which name), then add one row per option with
+  a label and a value, e.g. *English* = `en`. Every combination is captured: 2 languages × 2 themes = 4 versions
+  of each page.
+- **Test accounts**: an account logs in before the pages that need it, and Find pages also follows the links you
+  only see when logged in. Enter the login page, the e-mail and the password, and click **Test login** (it
+  saves the project first): it shows where it landed, with a screenshot, and finds the login fields by itself if
+  the usual names don't work.
+  **Change the login fields by hand** holds them if you need to. For special logins (extra fields, two steps),
+  switch the account to **Other (steps)**. Passwords stay in the project file on your computer
+  (`projects/*.json`, never uploaded and not committed to git).
+- **Local storage**: values set before every page opens, in every language, theme and account: for example a
+  saved cart or comparison list, so the pages that read it are captured with content. Write each value exactly as
+  the site stores it (look in the browser's developer tools, Application → Local Storage), e.g. `[{"id":3}]` or
+  `"en"`. **Table** shows one row per value; **Bulk** shows them all as text, one `key=value` per line, to paste
+  many at once. A value that starts with `[` or `{` but is not valid JSON is marked red. A language or theme
+  option's own value for the same key wins.
+- **Loading**: for sites that draw their content with JavaScript and come out half drawn. **Wait until** adds
+  conditions such as "this is on the page" (a CSS selector) or "the page no longer has this class", joined by
+  *All of these* or *Any of these*; *Extra wait after ready* pauses a little longer. Leave it empty if unsure.
+- **Replace text**: e.g. find `֏`, replace with `AMD`, when a font in Figma lacks a character.
 
-**4. Stored values.** localStorage values set before every page opens, in every language, theme and account:
-for example a saved cart or comparison list, so the pages that read it are captured with content. Write each
-value exactly as the site stores it (look in the browser's developer tools, Application → Local Storage), e.g.
-`[{"id":3}]` or `"en"`. **Table** shows one row per value; **Bulk** shows them all as text, one `key=value` per
-line, to paste many at once. A value that starts with `[` or `{` but is not valid JSON is marked red. A
-language or theme option's own value for the same key wins.
-
-**5. Pages.** Click **Find pages**: html2frame opens the site, follows its links (as a guest, then logged in
+**3. Pages.** Click **Find pages**: html2frame opens the site, follows its links (as a guest, then logged in
 with each account) and fills the list. Pages that only differ by an id (`product.html?id=1…50`) are listed once,
 as "+N similar". **Cancel** stops it; nothing is added then.
 
 ![The page list](docs/images/panel-pages.png)
 
-Untick pages you don't need, rename them, or change their group (each group becomes a row in Figma, or its own
-section). **Search** finds pages by name, address, group or account, also among the "similar" addresses;
-**Set group…** gives the pages shown (all of them without a search) one group, e.g. "My pages". **↗** next to an
-address opens the page in your browser (as a visitor). The row buttons: **⋯** steps before the capture (e.g. `[{"click": ".menu-button"}]` for an open menu, or filling a form
-to show its errors) and the screen sizes the page is captured on (a "menu open" state only on phones, where the
-burger button shows; none ticked = all), **⧉** duplicate a page as an extra state, **×** remove. **+ Add a page** adds one by hand.
+The list is shown in groups, like a task list; each group becomes a row in Figma, or its own section. Untick
+pages you don't need (the box in a group's header ticks the whole group), rename them, or click a group's name to
+rename the group. Drag a page by its **⠿** handle to reorder it or to move it into another group, and drag a group
+by its handle to reorder the groups; pages are captured in this order. **+ Add a page** at the end of a group adds
+one right there (type the name and address, then Enter); **+ New group** at the end of the list adds an empty
+group. **Search** finds pages by name, address, group or account, also among the "similar" addresses. **↗** next
+to an address opens the page in your browser (as a visitor). The row buttons: **⋯** steps before the capture
+(e.g. *Click* `.menu-button` for an open menu, or *Type into* a form to show its errors; **Edit as JSON** if you
+prefer) and the screen sizes the page is captured on (a "menu open" state only on phones, where the burger button
+shows; none ticked = all), **⧉** add a state of the page (the same page after some steps), **×** remove.
 
-**6. Capture.** Click **Capture** and follow the progress; **Cancel** stops it without saving anything. The
+**4. Capture.** Click **Capture** and follow the progress; **Cancel** stops it without saving anything. The
 estimate shows how many frames you will get. While a capture or Find pages runs, the settings are locked (the
 search and the logs still work). Under **Recent captures**, **×** moves one capture file to the Recycle Bin
 (Trash on macOS) and **Remove all** moves all of them, so you can bring one back from there. **View all** lists
@@ -182,7 +189,7 @@ in [`docs/FORMAT.md`](docs/FORMAT.md).
 | **"Node.js 18 or newer is needed"** | Install it from [nodejs.org](https://nodejs.org), then start again. |
 | **"Could not start Microsoft Edge or Google Chrome"** | Install one of them (any recent version). |
 | **macOS: "start.command cannot be opened"** | Right-click it → **Open** → **Open** (only the first time). If it opens in a text editor: `chmod +x start.command` in Terminal. |
-| **Pages come out half drawn or empty** | The site draws with JavaScript: set **Ready when** in *Project → Advanced*. |
+| **Pages come out half drawn or empty** | The site draws with JavaScript: open **Loading** and set **Wait until** (or a longer *Extra wait*). |
 | **"Ready when was not true … captured anyway"** | The condition does not fit this site (e.g. copied from another project): fix or clear it. |
 | **A login page instead of the account page** ("landed on /login.html") | Check the test account with **Test login**; add the account to the page in the Pages table. |
 | **"content is 469px wide on a 390px screen"** | The page itself overflows sideways on that screen (a real responsive bug on the site). The frame keeps the screen width. |
