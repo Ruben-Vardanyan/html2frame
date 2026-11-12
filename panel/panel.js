@@ -1487,7 +1487,18 @@ function moveToGroup(p, g) {
 	setGroup([p], g);
 }
 
+// Draws the page list again, where the reader is: drawing takes every row out first, and for that moment the page
+// is shorter, so the browser pulls the window up; it then stays up (a page removed near the bottom jumped about
+// seven rows). The window's and the list's own scroll positions are kept across the drawing.
 function renderPages() {
+	const wrap = $('pageTable').closest('.table-wrap');
+	const y = window.scrollY, x = wrap ? wrap.scrollLeft : 0;
+	drawPages();
+	if (window.scrollY !== y) window.scrollTo(window.scrollX, y);
+	if (wrap && wrap.scrollLeft !== x) wrap.scrollLeft = x;
+}
+
+function drawPages() {
 	const table = $('pageTable');
 	const wasAdding = !!table.querySelector('tr.add-row.adding') && table.contains(document.activeElement);
 	table.querySelectorAll('tbody').forEach(b => b.remove());
@@ -1792,7 +1803,19 @@ function pageRow(p, pages, accounts, withAccount, cols) {
 	}
 	tr.append(el('td', {class: 'c-more'}, tagBox, more,
 		el('button', {class: 'icon-btn', type: 'button', title: 'Add a state of this page (the same page after some steps, e.g. "menu open")', onclick: () => openAddForm(p)}, '⧉'),
-		el('button', {class: 'icon-btn danger', type: 'button', title: 'Remove from the list', onclick: () => { pages.splice(pages.indexOf(p), 1); markDirty(); renderPages(); }}, '×')));
+		el('button', {class: 'icon-btn danger', type: 'button', title: 'Remove from the list', onclick: () => {
+			// the rows below move up one; the focus goes to the × of the row now in this place (else the one above),
+			// so removing several pages in a row works with the keyboard too
+			const shown = pageRowEls.filter(r => !r.tr.classList.contains('filtered'));
+			const k = shown.findIndex(r => r.p === p);
+			pages.splice(pages.indexOf(p), 1);
+			markDirty();
+			renderPages();
+			const now = pageRowEls.filter(r => !r.tr.classList.contains('filtered'));
+			const next = now[k] || now[k - 1];
+			const btn = next && next.tr.querySelector('[title="Remove from the list"]');
+			if (btn) btn.focus({preventScroll: true});
+		}}, '×')));
 	pageRowEls.push({p, tr, stepsRow, simHit});
 	rowPage.set(tr, p);
 	rowPage.set(stepsRow, p);
