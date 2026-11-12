@@ -1,4 +1,4 @@
-// html2frame — MIT License, © 2026 Ruben Vardanyan (see LICENSE)
+// html2frame — © 2026 Ruben Vardanyan, GNU GPL v3 or later (see LICENSE and NOTICE)
 // capture.js — Playwright runner: opens every page of a project at every screen size, waits until it has
 // rendered, runs src/extract.js in it and writes a FORMAT v1 capture file (docs/FORMAT.md).
 // Also a CLI: node src/capture.js projects/x.json [--screens desktop,phone] [--orientation both] [--pages "Home,Log In"] [--out file]
@@ -194,10 +194,10 @@ async function settle(page, settings, ready, warn) {
 		if (ok) {
 			if (ready) ready.misses = 0;
 		} else {
-			(warn || (() => {}))('"Ready when" was not true after ' + TIMEOUT / 1000 + ' s (' + settings.readyWhen + '); captured anyway');
+			(warn || (() => {}))('"Wait until" was not true after ' + TIMEOUT / 1000 + ' s (' + settings.readyWhen + '); captured anyway');
 			if (ready && ++ready.misses >= 2) {
 				ready.off = true;
-				(warn || (() => {}))('"Ready when" missed twice in a row: not waiting for it for the rest of this run. Check Project → Advanced.');
+				(warn || (() => {}))('"Wait until" missed twice in a row: not waiting for it for the rest of this run. Check Loading → Wait until in the panel.');
 			}
 		}
 	}

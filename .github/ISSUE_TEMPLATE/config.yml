@@ -1,0 +1,6 @@
+# New issues start from the two forms (Report a problem, Suggest an idea); a blank issue stays possible.
+blank_issues_enabled: true
+contact_links:
+  - name: Help and usual problems
+    url: https://github.com/Ruben-Vardanyan/html2frame#troubleshooting
+    about: The fixes for the usual problems (also on the panel's Help page).

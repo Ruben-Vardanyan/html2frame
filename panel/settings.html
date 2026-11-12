@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Settings — html2frame</title>
+	<link rel="stylesheet" href="panel.css">
+	<script src="theme.js"></script>
+	<link rel="icon" type="image/png" href="/assets/icon-64.png">
+	<link rel="icon" type="image/svg+xml" href="/assets/icon-adaptive.svg">
+	<script src="common.js" defer></script>
+	<script src="settings.js" defer></script>
+</head>
+<body>
+	<header class="top">
+		<div class="top-inner">
+			<a class="brand plain" href="/">
+				<svg class="logo" viewBox="0 0 128 128" width="40" height="40" role="img" aria-label="html2frame icon"><rect x="26" y="26" width="76" height="76" fill="none" stroke="#E2554F" stroke-width="3.5"/><g style="fill: var(--card)" stroke="#E2554F" stroke-width="3.5"><rect x="21" y="21" width="10" height="10"/><rect x="97" y="21" width="10" height="10"/><rect x="21" y="97" width="10" height="10"/><rect x="97" y="97" width="10" height="10"/></g><path style="stroke: var(--text)" d="M50 49 L37 64 L50 79 M78 49 L91 64 L78 79 M69 45 L59 83" fill="none" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+				<div><div class="title">html2frame</div><div class="subtitle">Settings</div></div>
+			</a>
+			<div class="top-links">
+				<!-- on a narrow screen only the arrow shows; the words stay for screen readers and in the tooltip -->
+				<a class="btn ghost back-btn" href="/" title="Back to the panel"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7H2.5M6.5 3L2.5 7l4 4"/></svg><span class="back-text">Back to the panel</span></a>
+			</div>
+		</div>
+	</header>
+
+	<main class="help-page settings-page">
+		<!-- status lines (update, check, icons) are announced as they change -->
+		<p class="sr-only" id="announce" aria-live="polite"></p>
+
+		<section class="card" id="updateCard" aria-labelledby="updateTitle">
+			<div class="card-head">
+				<h1 id="updateTitle">Version and updates</h1>
+			</div>
+			<p>Version <b id="version">…</b> <span class="muted" id="installKind"></span></p>
+			<p id="updateStatus" class="muted">Checking…</p>
+			<p id="lastUpdate" hidden></p>
+			<!-- the release's notes from GitHub ("What's new"), open when an update is waiting -->
+			<details class="notes-box" id="notesBox" hidden>
+				<summary id="notesTitle">What's new</summary>
+				<div class="notes" id="notes"></div>
+				<a id="notesLink" href="https://github.com/Ruben-Vardanyan/html2frame/releases" target="_blank" rel="noopener">See it on GitHub</a>
+			</details>
+			<!-- a git folder that cannot be updated here: why, and the command to run -->
+			<div id="gitManual" hidden>
+				<p class="warn-text" id="gitReason"></p>
+				<div class="path-box">
+					<code id="gitCommand"></code>
+					<div class="path-actions"><button class="btn ghost small" id="copyCommand" type="button">Copy</button></div>
+				</div>
+			</div>
+			<div class="job" id="updateJob" hidden>
+				<div class="job-line"><span class="spinner" id="updateSpinner"></span><span id="updateJobText">Updating…</span></div>
+				<div class="progress update-progress"><div class="bar"><div id="updateBar"></div></div></div>
+				<details class="log-box"><summary>Log</summary><pre class="log" id="updateLog"></pre></details>
+			</div>
+			<div class="row-actions">
+				<button class="btn" id="updateNow" type="button" hidden>Update now</button>
+				<button class="btn ghost" id="checkUpdates" type="button">Check for updates</button>
+			</div>
+			<p class="muted small">html2frame looks for a new release on GitHub once a week while it runs
+				(<a href="https://github.com/Ruben-Vardanyan/html2frame/releases" target="_blank" rel="noopener">all releases</a>).
+				An update keeps your projects and captures; the Figma plugin needs nothing.</p>
+		</section>
+
+		<section class="card" aria-labelledby="checkTitle">
+			<div class="card-head">
+				<h2 id="checkTitle">Setup check</h2>
+				<button class="btn ghost small" id="checkAgain" type="button">Check again</button>
+			</div>
+			<p class="muted small" id="checkWhen"></p>
+			<ul class="checks" id="checkList"></ul>
+		</section>
+
+		<section class="card" id="iconsCard" aria-labelledby="iconsTitle" hidden>
+			<div class="card-head">
+				<h2 id="iconsTitle">Icons</h2>
+			</div>
+			<p class="muted small">Start html2frame with a click: its window opens, as with the Start file.</p>
+			<div class="icon-checks" id="iconChecks"></div>
+			<div class="error" id="iconsError"></div>
+		</section>
+
+		<section class="card" aria-labelledby="appearanceTitle">
+			<h2 id="appearanceTitle">Appearance</h2>
+			<p class="muted small">How the panel looks. <b>System</b> follows your computer's light or dark setting. The choice is
+				kept in this browser, and the ☰ menu on the panel has it too.</p>
+			<!-- theme.js wires every .theme-switch: the choice applies at once, in every open panel tab -->
+			<div class="seg theme-switch theme-choice" role="radiogroup" aria-label="Theme">
+				<label><input type="radio" name="theme" value="system"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="1.75" y="2.75" width="12.5" height="8.5" rx="1.5"/><path d="M5.5 14h5M8 11.5V14" stroke-linecap="round"/></svg>System</label>
+				<label><input type="radio" name="theme" value="light"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1"/></svg>Light</label>
+				<label><input type="radio" name="theme" value="dark"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 9.6A5.75 5.75 0 0 1 6.4 2.5a5.75 5.75 0 1 0 7.1 7.1z"/></svg>Dark</label>
+			</div>
+		</section>
+
+		<section class="card" aria-labelledby="pluginTitle">
+			<h2 id="pluginTitle">Figma plugin</h2>
+			<p>Figma imports the plugin from this file (<a href="help.html">how</a>):</p>
+			<div class="path-box">
+				<code id="manifestPath">figma-plugin/manifest.json in the html2frame folder</code>
+				<div class="path-actions">
+					<button class="btn ghost small" id="copyPath" type="button">Copy path</button>
+					<button class="btn ghost small" id="revealPath" type="button"><span data-os="win">Show in Explorer</span><span data-os="mac">Show in Finder</span><span data-os="other">Show in folder</span></button>
+				</div>
+			</div>
+		</section>
+
+		<section class="card" aria-labelledby="stopTitle">
+			<h2 id="stopTitle">Stop html2frame</h2>
+			<p>html2frame keeps running until you quit it here or close its window. Quitting stops a capture that is running.</p>
+			<div class="row-actions">
+				<button class="btn ghost" type="button" data-quit>Quit html2frame</button>
+				<button class="link" id="showLog" type="button">Show the log file</button>
+			</div>
+		</section>
+	</main>
+
+	<footer class="foot">
+		<span>html2frame</span>
+		<span>·</span>
+		<a href="help.html">Help</a>
+		<span>·</span>
+		<a href="about.html">About</a>
+		<span>·</span>
+		<a href="/license" target="_blank" rel="noopener">GPL-3.0 License</a>
+		<span>·</span>
+		<a href="https://github.com/Ruben-Vardanyan/html2frame" target="_blank" rel="noopener">GitHub</a>
+		<span>·</span>
+		<span>© 2026 Ruben Vardanyan</span>
+	</footer>
+</body>
+</html>

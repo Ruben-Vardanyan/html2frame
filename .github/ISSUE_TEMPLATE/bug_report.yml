@@ -1,0 +1,50 @@
+# The "Report a problem" form. The panel's About page opens it with "Your setup" filled in (the field id
+# "environment"; GitHub fills fields from the address). YAML cannot be indented with tabs, so this file uses spaces.
+name: Report a problem
+description: Something in html2frame does not work as it should.
+title: "[Problem] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! The panel's **Help** page lists the usual problems and their fixes; please check it first.
+        Don't paste passwords, and don't attach pages or captures that must stay private.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, and what went wrong? Copy the exact message if there was one. You can drag screenshots in here.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where?
+      options:
+        - Starting html2frame (Start file, icons, setup check)
+        - Control panel
+        - Find pages
+        - Capture
+        - Figma plugin (import)
+        - Update
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to see it again (if you know them)
+      placeholder: |
+        1. …
+        2. …
+  - type: textarea
+    id: environment
+    attributes:
+      label: Your setup
+      description: Filled in when you come from html2frame's About page. Otherwise copy it from there (About → Your setup → Copy).
+      render: text

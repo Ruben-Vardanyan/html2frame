@@ -1,4 +1,4 @@
-// html2frame — MIT License, © 2026 Ruben Vardanyan (see LICENSE)
+// html2frame — © 2026 Ruben Vardanyan, GNU GPL v3 or later (see LICENSE and NOTICE)
 // screens.js — screen presets and orientation handling.
 // Sizes are CSS pixels in portrait/landscape order as the device is usually held.
 

@@ -1,12 +1,12 @@
 {
 	"name": "html2frame",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "Capture web pages in a real browser and rebuild them in Figma as editable frames.",
 	"private": true,
-	"license": "MIT",
+	"license": "GPL-3.0-or-later",
 	"author": "Ruben Vardanyan",
 	"engines": {
-		"node": ">=18"
+		"node": ">=20"
 	},
 	"scripts": {
 		"start": "node server.js",

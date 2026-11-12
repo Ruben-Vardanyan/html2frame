@@ -1,11 +1,11 @@
-// html2frame — MIT License, © 2026 Ruben Vardanyan (see LICENSE)
+// html2frame — © 2026 Ruben Vardanyan, GNU GPL v3 or later (see LICENSE and NOTICE)
 // panel.js — the control panel page (vanilla JS). Edits one project's settings (docs/PLAN.md "Settings file"):
 // site and screens, optional sections that stay closed until used (languages and themes, test accounts, local
 // storage, loading, replace text), and the pages in groups (drag to reorder, steps as rows). Runs "Find pages"
 // (crawl) and "Capture" as server jobs, follows them over Server-Sent Events and can cancel them.
+// $, call(), follow(), Quit and the "stopped" screen come from common.js (loaded first).
 'use strict';
 
-const $ = id => document.getElementById(id);
 const el = (tag, attrs = {}, ...kids) => {
 	const e = document.createElement(tag);
 	for (const [k, v] of Object.entries(attrs)) {
@@ -168,40 +168,6 @@ let project = null; // its settings
 let dirty = false;
 let busy = false;
 let jobId = null; // the running job, for Cancel
-
-// ---- server -----------------------------------------------------------------------------------------
-
-async function call(method, url, body) {
-	const res = await fetch(url, {method, headers: body ? {'Content-Type': 'application/json'} : {}, body: body ? JSON.stringify(body) : undefined});
-	const data = await res.json().catch(() => ({}));
-	if (!res.ok) throw new Error(data.error || res.statusText);
-	return data;
-}
-
-// follow a job: onEvent(ev) for log / progress; resolves with the result, rejects with the error
-// ({cancelled: true} when it was cancelled)
-function follow(id, onEvent) {
-	return new Promise((resolve, reject) => {
-		const es = new EventSource('/api/jobs/' + id + '/events');
-		es.onmessage = m => {
-			const ev = JSON.parse(m.data);
-			if (ev.type === 'done') {
-				es.close();
-				resolve(ev.result);
-			} else if (ev.type === 'error') {
-				es.close();
-				reject(new Error(ev.message));
-			} else if (ev.type === 'cancelled') {
-				es.close();
-				reject(Object.assign(new Error('Cancelled'), {cancelled: true}));
-			} else onEvent(ev);
-		};
-		es.onerror = () => {
-			es.close();
-			reject(new Error('Lost the connection to the panel server. Is it still running?'));
-		};
-	});
-}
 
 function setBusy(b, text) {
 	busy = b;
@@ -380,7 +346,7 @@ document.addEventListener('click', e => {
 });
 
 window.addEventListener('beforeunload', e => {
-	if (dirty) {
+	if (dirty && !document.body.classList.contains('stopped')) {
 		e.preventDefault();
 		e.returnValue = '';
 	}
@@ -2412,10 +2378,18 @@ $('captureBtn').onclick = runCapture;
 $('crawlCancel').onclick = cancelJob;
 $('captureCancel').onclick = cancelJob;
 
+quitWarning = () => (dirty ? 'Your changes to this project are not saved.' : '');
+
 (async () => {
-	info = await call('GET', '/api/info');
+	try {
+		info = await call('GET', '/api/info');
+	} catch (e) {
+		return showStopped(); // the server is not running (or no longer)
+	}
+	showUpdateDot(info.updateAvailable);
 	await loadProjects();
-	if (info.running) {
+	if (info.running && info.running.kind === 'update') setBusy(true, 'Updating html2frame…'); // Settings follows it
+	else if (info.running) {
 		const job = info.running, crawling = job.kind === 'crawl';
 		setBusy(true, job.title + '…');
 		const target = crawling ? 'crawlStatus' : 'captureStatus';
@@ -2440,7 +2414,7 @@ $('captureCancel').onclick = cancelJob;
 	}
 })();
 
-// ---- top bar menu (narrow windows): Help and the theme behind one ⋯ button ------------------------------
+// ---- top bar menu: Help, Settings, Quit and the theme behind the ☰ button (a dropdown) --------------------
 // On wide windows the button is not shown and its menu's items stand in the bar (panel.css: display: contents).
 (function () {
 	const wrap = $('topMore');

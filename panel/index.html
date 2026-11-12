@@ -8,6 +8,7 @@
 	<script src="theme.js"></script>
 	<link rel="icon" type="image/png" href="/assets/icon-64.png">
 	<link rel="icon" type="image/svg+xml" href="/assets/icon-adaptive.svg">
+	<script src="common.js" defer></script>
 	<script src="panel.js" defer></script>
 </head>
 <body>
@@ -35,14 +36,18 @@
 				<!-- Save shows the state itself: quiet when everything is saved, filled in the warning colour when not -->
 				<button class="btn save-btn" id="saveProject" type="button" title="All changes are saved" disabled>Save</button>
 			</div>
-			<!-- Help and the theme: in the bar on wide windows; on narrow ones behind the ⋯ button, as a small menu -->
+			<!-- Help, Settings, Quit and the theme: behind the ☰ (menu) button, as a dropdown, at every width. The update
+			     dot (common.js) shows on ☰ and on Settings. -->
 			<div class="top-more" id="topMore">
-				<button class="btn ghost more-btn" id="moreBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="moreMenu" title="Help and theme">
-					<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="3" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="13" cy="8" r="1.5"/></svg>
-					<span class="sr-only">Help and theme</span>
+				<button class="btn ghost more-btn" id="moreBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="moreMenu" title="Menu: help, settings, quit, theme" data-update-dot>
+					<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h11"/></svg>
+					<span class="sr-only">Menu: help, settings, quit, theme</span>
 				</button>
 				<div class="more-menu" id="moreMenu" tabindex="-1">
-					<a class="btn ghost" href="help.html" title="How to add the html2frame plugin to Figma">Help</a>
+					<a class="btn ghost bar-btn" href="help.html" title="How to add the html2frame plugin to Figma"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="6.25"/><path d="M6.2 6.2a1.9 1.9 0 0 1 3.7.6c0 1.3-1.9 1.6-1.9 2.8"/><circle cx="8" cy="11.6" r=".4" fill="currentColor"/></svg><span>Help</span></a>
+					<a class="btn ghost bar-btn bar-icon" href="settings.html" title="Settings: updates, icons, setup check" data-update-dot><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span class="bar-text">Settings</span></a>
+					<a class="btn ghost bar-btn" href="about.html#report" title="Report a problem or suggest an idea on GitHub"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 14.5V2.5M3.5 2.5h8.25l-1.75 3 1.75 3H3.5"/></svg><span>Report a problem</span></a>
+					<button class="btn ghost bar-btn bar-icon" type="button" title="Quit: stop html2frame" data-quit><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M8 2v6M4.6 4.4a5.25 5.25 0 1 0 6.8 0"/></svg><span class="bar-text">Quit</span></button>
 					<span class="more-label">Theme</span>
 					<div class="seg theme-switch" role="radiogroup" aria-label="Theme">
 						<label title="Same as your system"><input type="radio" name="theme" value="system" aria-label="System theme"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.75" y="2.75" width="12.5" height="8.5" rx="1.5"/><path d="M5.5 14h5M8 11.5V14" stroke-linecap="round"/></svg></label>
@@ -253,7 +258,11 @@
 		<span>·</span>
 		<a href="help.html">Help</a>
 		<span>·</span>
-		<a href="/license" target="_blank" rel="noopener">MIT License</a>
+		<a href="settings.html">Settings</a>
+		<span>·</span>
+		<a href="about.html">About</a>
+		<span>·</span>
+		<a href="/license" target="_blank" rel="noopener">GPL-3.0 License</a>
 		<span>·</span>
 		<a href="https://github.com/Ruben-Vardanyan/html2frame" target="_blank" rel="noopener">GitHub</a>
 		<span>·</span>

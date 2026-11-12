@@ -1,0 +1,27 @@
+html2frame
+Copyright (C) 2026 Ruben Vardanyan
+https://github.com/Ruben-Vardanyan/html2frame
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU General
+Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
+(the LICENSE file) for more details.
+
+
+Additional terms (GNU General Public License, version 3, section 7(b))
+----------------------------------------------------------------------
+
+Anyone who conveys this program or a work based on it, changed or not, free of charge or for a fee, must keep
+this author attribution:
+
+    html2frame by Ruben Vardanyan - https://github.com/Ruben-Vardanyan/html2frame
+
+1. in this NOTICE file, and
+2. reasonably visible in the Appropriate Legal Notices that the work's user interfaces display. In html2frame
+   these are the control panel's About page and the footer of the Figma plugin window.
+
+A modified version must say that it was modified, and may add its own name and credits next to this
+attribution, but must not remove, hide or change it.

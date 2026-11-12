@@ -9,3 +9,6 @@ projects/*.json
 !projects/example*.json
 # deleted projects are kept here (they may hold passwords too)
 projects/deleted/
+
+# this computer's html2frame files: setup check, icon answers, update state, logs, backup (D21)
+.html2frame/

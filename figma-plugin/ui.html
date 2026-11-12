@@ -199,7 +199,7 @@
 	<div class="status" id="status">Load a capture to begin.</div>
 	<div class="bar" id="bar"><div></div></div>
 	<button class="primary" id="go" type="button" disabled>Import</button>
-	<div class="legal">MIT License · © 2026 Ruben Vardanyan · <a href="#" id="repo">GitHub</a></div>
+	<div class="legal">html2frame by Ruben Vardanyan · GPL-3.0 · <a href="#" id="repo">GitHub</a></div>
 </footer>
 
 <script>
@@ -232,7 +232,9 @@
 			if (!res.ok) throw new Error(res.status === 404 ? 'the panel has no captures yet' : 'HTTP ' + res.status);
 			send({type: 'load', files: [await res.json()], source: 'Control panel'});
 		} catch (e) {
-			setStatus('Could not reach the control panel (' + e.message + '). Start it, or choose a file.', true);
+			// no answer at all (fetch throws a TypeError): html2frame is not running
+			setStatus(e instanceof TypeError ? 'html2frame is not running. Start it from its icon or the Start file, then try again, or choose a file.'
+				: 'Could not reach the control panel (' + e.message + '). Start it, or choose a file.', true);
 		}
 	};
 

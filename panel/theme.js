@@ -1,5 +1,5 @@
-// html2frame — MIT License, © 2026 Ruben Vardanyan (see LICENSE)
-// theme.js — Light / Dark / System for the panel and the Help page. Loaded in <head> without defer, so the
+// html2frame — © 2026 Ruben Vardanyan, GNU GPL v3 or later (see LICENSE and NOTICE)
+// theme.js — Light / Dark / System for every panel page (the switch is in the panel's ☰ menu and in Settings → Appearance). Loaded in <head> without defer, so the
 // chosen theme is set before the page is drawn (no flash). panel.css reads <html data-theme="light|dark">;
 // without it the system's setting applies. The choice is kept in this browser (localStorage).
 (function () {

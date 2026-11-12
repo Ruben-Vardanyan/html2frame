@@ -1,0 +1,21 @@
+# The "Suggest an idea" form (the panel's About page links to it). Spaces, not tabs: YAML does not allow tabs.
+name: Suggest an idea
+description: Something html2frame could do, or do better.
+title: "[Idea] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like html2frame to do?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why? What would it help you with?
+  - type: textarea
+    id: environment
+    attributes:
+      label: Your setup (optional)
+      render: text

@@ -1,4 +1,4 @@
-// html2frame — MIT License, © 2026 Ruben Vardanyan (see LICENSE)
+// html2frame — © 2026 Ruben Vardanyan, GNU GPL v3 or later (see LICENSE and NOTICE)
 // extract.js — runs INSIDE the page (injected by capture.js).
 // Walks the rendered DOM and records what is painted, in page coordinates, as a JSON tree
 // the Figma plugin rebuilds: frames (boxes), text, svg and images.
