@@ -124,6 +124,19 @@ function outFile(project, now) {
 
 // ---- browser contexts -------------------------------------------------------------------------------
 
+// A value copied from code keeps its quotes ('[{"id":3}]'), and the site would get text that isn't JSON:
+// quotes around JSON ([…] or {…}) that parses without them are dropped (the panel does the same)
+function unquoteJson(v) {
+	const m = /^\s*(['"`])\s*([[{][\s\S]*[\]}])\s*\1\s*$/.exec(v);
+	if (!m) return v;
+	try {
+		JSON.parse(m[2]);
+		return m[2];
+	} catch (e) {
+		return v;
+	}
+}
+
 // info (optional) receives {landing: path} where the login ended, e.g. the dashboard (used by crawl.js)
 async function newContext(browser, screen, variant, account, site, info) {
 	const context = await browser.newContext({
@@ -134,7 +147,7 @@ async function newContext(browser, screen, variant, account, site, info) {
 	});
 	context.setDefaultTimeout(TIMEOUT);
 	const ls = {};
-	for (const [k, v] of Object.entries(variant.localStorage || {})) ls[k] = typeof v === 'string' ? v : JSON.stringify(v);
+	for (const [k, v] of Object.entries(variant.localStorage || {})) ls[k] = typeof v === 'string' ? unquoteJson(v) : JSON.stringify(v);
 	if (Object.keys(ls).length) {
 		// set if missing, so a page's own changes (e.g. a language switch) survive reloads
 		await context.addInitScript(values => {

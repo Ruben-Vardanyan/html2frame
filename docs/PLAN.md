@@ -196,7 +196,8 @@ Save is always in view. The Help page's bar stays one line: below 481 px its way
   "Change the login fields by hand" holds the field selectors, submit button and "address after login
   contains". Other logins are steps.
 - **Local storage** (project-wide `localStorage`): Table (key, value, remove; "+ Add a value") or Bulk text (one
-  `key=value` per line); values starting with `[` or `{` must be valid JSON (marked red otherwise).
+  `key=value` per line); values starting with `[` or `{` must be valid JSON (marked red otherwise). Quotes
+  around JSON copied from code (`'[{…}]'`) are dropped, by the panel and again by the capture.
 - **Loading**: Wait until edits `readyWhen` as rows, "This is on the page / is gone from the page" (a selector),
   "The page has / no longer has this class" (a class of `<html>`) or "Custom (JavaScript)", joined by All of
   these (`&&`) or Any of these (`||`); it still saves one line of JavaScript, and a line the rows cannot read is

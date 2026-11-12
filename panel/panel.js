@@ -1289,7 +1289,7 @@ function storageMode() {
 }
 
 function renderStorage() {
-	storageRows = Object.entries(project.localStorage || {}).map(([k, v]) => [k, typeof v === 'string' ? v : JSON.stringify(v)]);
+	storageRows = Object.entries(project.localStorage || {}).map(([k, v]) => [k, typeof v === 'string' ? unquoteJson(v) : JSON.stringify(v)]);
 	document.querySelectorAll('input[name=storage-mode]').forEach(r => {
 		r.checked = r.value === storageMode();
 		r.onchange = () => {
@@ -1343,9 +1343,22 @@ function textToRows(text) {
 	return rows;
 }
 
+// A value copied from code, like '[{"id":3}]' from localStorage.setItem('k', '[…]'), keeps its quotes;
+// the site would get text that isn't JSON. Drop quotes around JSON ([…] or {…}) that parses without them.
+function unquoteJson(v) {
+	const m = /^(['"`])\s*([[{][\s\S]*[\]}])\s*\1$/.exec(v);
+	if (!m) return v;
+	try {
+		JSON.parse(m[2]);
+		return m[2];
+	} catch (e) {
+		return v;
+	}
+}
+
 function syncStorage() {
 	const o = {};
-	for (const [k, v] of storageRows) if (k.trim()) o[k.trim()] = v.trim();
+	for (const [k, v] of storageRows) if (k.trim()) o[k.trim()] = unquoteJson(v.trim());
 	if (Object.keys(o).length) project.localStorage = o; else delete project.localStorage;
 	checkStorage();
 	markDirty();
@@ -1357,9 +1370,10 @@ function checkStorage() {
 	const inputs = $('storageRows').querySelectorAll('input.v');
 	storageRows.forEach(([k, v], i) => {
 		let ok = true;
-		if (/^[[{]/.test(v.trim())) {
+		const t = unquoteJson(v.trim());
+		if (/^['"`]?\s*[[{]/.test(t)) {
 			try {
-				JSON.parse(v);
+				JSON.parse(t);
 			} catch (e) {
 				ok = false;
 				bad.push(k.trim() || '(no key)');
@@ -1368,7 +1382,7 @@ function checkStorage() {
 		if (inputs[i]) inputs[i].classList.toggle('invalid', !ok);
 	});
 	$('storageErr').hidden = !bad.length;
-	$('storageErr').textContent = bad.length ? 'Not valid JSON: ' + bad.join(', ') + '. Check for a missing bracket or an extra comma at the end.' : '';
+	$('storageErr').textContent = bad.length ? 'Not valid JSON: ' + bad.join(', ') + '. Check for a missing bracket, an extra comma at the end or quotes around it.' : '';
 	updateOptional();
 }
 
