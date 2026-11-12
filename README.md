@@ -2,9 +2,13 @@
 
 # html2frame
 
-Turn the pages of a website into **editable Figma designs**: real frames, text layers, vectors and images
-(not screenshots), at the screen sizes you choose, in every language and theme of the site, including pages
-behind a login.
+**HTML to Figma, website to Figma:** turn the pages of a website into **editable Figma designs**: real frames,
+text layers, vectors and images (not screenshots), at the screen sizes you choose (desktop, laptop, tablet,
+phone), in every language and theme of the site, including pages behind a login.
+
+**[⬇ Download the latest version](https://github.com/Ruben-Vardanyan/html2frame/releases/latest)**
+(under *Assets*, **Source code (zip)**) · [How to install](#install) ·
+[Report a problem](https://github.com/Ruben-Vardanyan/html2frame/issues)
 
 - Works on the **free Figma plan**: the importer is a Figma plugin you load in the desktop app.
 - Everything runs **on your computer**: your site, its test logins and the captures never leave it.
@@ -44,8 +48,10 @@ that is painted, and the plugin rebuilds it in Figma node by node.
 
 ## Install
 
-1. **Download html2frame:** on GitHub, **Code → Download ZIP**, then extract it (Windows: right-click the ZIP →
-   **Extract All**; macOS: double-click it). Keep the folder somewhere of your own, such as Documents.
+1. **Download html2frame:** open the [latest release](https://github.com/Ruben-Vardanyan/html2frame/releases/latest)
+   and, under *Assets*, click **Source code (zip)**. Extract it (Windows: right-click the ZIP → **Extract All**;
+   macOS: double-click it) and keep the folder somewhere of your own, such as Documents. (**Code → Download ZIP**
+   on the repository page also works, but it gives the newest code on `main`, which may not be released yet.)
    Developers can `git clone https://github.com/Ruben-Vardanyan/html2frame.git` instead.
 2. **Start it:** in the folder, double-click
    - **Windows:** **Start (Windows)** (`Start (Windows).bat`);
