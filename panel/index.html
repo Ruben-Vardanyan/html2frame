@@ -11,6 +11,7 @@
 	<script src="panel.js" defer></script>
 </head>
 <body>
+	<!-- "?" marks carry their text in data-tip only; panel.js adds the keyboard and screen-reader attributes. -->
 	<header class="top">
 		<div class="top-inner">
 			<div class="brand">
@@ -31,14 +32,23 @@
 						<ul class="picker-menu" id="projectMenu" role="listbox" aria-labelledby="projectLabel" hidden></ul>
 					</div>
 				</div>
-				<button class="btn ghost" id="newProject" type="button">+ New</button>
-				<span class="save-state" id="saveState"></span>
-				<button class="btn" id="saveProject" type="button" disabled>Save</button>
-				<a class="btn ghost" href="help.html" title="How to add the html2frame plugin to Figma">Help</a>
-				<div class="seg theme-switch" role="radiogroup" aria-label="Theme">
-					<label title="Same as your system"><input type="radio" name="theme" value="system" aria-label="System theme"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.75" y="2.75" width="12.5" height="8.5" rx="1.5"/><path d="M5.5 14h5M8 11.5V14" stroke-linecap="round"/></svg></label>
-					<label title="Light"><input type="radio" name="theme" value="light" aria-label="Light theme"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1"/></svg></label>
-					<label title="Dark"><input type="radio" name="theme" value="dark" aria-label="Dark theme"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M13.5 9.6A5.75 5.75 0 0 1 6.4 2.5a5.75 5.75 0 1 0 7.1 7.1z"/></svg></label>
+				<!-- Save shows the state itself: quiet when everything is saved, filled in the warning colour when not -->
+				<button class="btn save-btn" id="saveProject" type="button" title="All changes are saved" disabled>Save</button>
+			</div>
+			<!-- Help and the theme: in the bar on wide windows; on narrow ones behind the ⋯ button, as a small menu -->
+			<div class="top-more" id="topMore">
+				<button class="btn ghost more-btn" id="moreBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="moreMenu" title="Help and theme">
+					<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="3" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="13" cy="8" r="1.5"/></svg>
+					<span class="sr-only">Help and theme</span>
+				</button>
+				<div class="more-menu" id="moreMenu" tabindex="-1">
+					<a class="btn ghost" href="help.html" title="How to add the html2frame plugin to Figma">Help</a>
+					<span class="more-label">Theme</span>
+					<div class="seg theme-switch" role="radiogroup" aria-label="Theme">
+						<label title="Same as your system"><input type="radio" name="theme" value="system" aria-label="System theme"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.75" y="2.75" width="12.5" height="8.5" rx="1.5"/><path d="M5.5 14h5M8 11.5V14" stroke-linecap="round"/></svg></label>
+						<label title="Light"><input type="radio" name="theme" value="light" aria-label="Light theme"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1"/></svg></label>
+						<label title="Dark"><input type="radio" name="theme" value="dark" aria-label="Dark theme"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M13.5 9.6A5.75 5.75 0 0 1 6.4 2.5a5.75 5.75 0 1 0 7.1 7.1z"/></svg></label>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -48,7 +58,7 @@
 		<!-- empty state: no projects yet -->
 		<section class="card empty" id="emptyState" hidden>
 			<h2>Start a project</h2>
-			<p class="muted">A project is a website (a folder of HTML files, or an address such as http://localhost:3000) plus the screens, languages, test logins and pages you want in Figma.</p>
+			<p class="muted">A project is a website (a folder of HTML files, or an address such as http://localhost:3000) plus the screens and pages you want in Figma.</p>
 			<div class="row-actions">
 				<button class="btn" id="emptyNew" type="button">New project</button>
 			</div>
@@ -58,14 +68,14 @@
 		<section class="card" id="newForm" hidden>
 			<div class="card-head"><h2>New project</h2><button class="link" id="cancelNew" type="button">Cancel</button></div>
 			<div class="grid2">
-				<label class="field"><span>Name<span class="help" tabindex="0" role="img" aria-label="Your name for this project. Capture files are named after it." data-tip="Your name for this project. Capture files are named after it.">?</span></span><input id="npName" placeholder="My website"></label>
-				<div class="field"><span>Site<span class="help" tabindex="0" role="img" aria-label="Folder: html2frame serves your HTML files itself, no server needed. Address: a site that is already running, e.g. your development server at http://localhost:3000." data-tip="Folder: html2frame serves your HTML files itself, no server needed. Address: a site that is already running, e.g. your development server at http://localhost:3000.">?</span></span>
+				<label class="field"><span>Name<span class="help" data-tip="Your name for this project. Capture files are named after it.">?</span></span><input id="npName" placeholder="My website"></label>
+				<div class="field"><span>Site<span class="help" data-tip="Folder: html2frame serves your HTML files itself, no server needed. Address: a site that is already running, e.g. your development server at http://localhost:3000.">?</span></span>
 					<div class="seg"><label><input type="radio" name="npKind" value="folder" checked> Folder</label><label><input type="radio" name="npKind" value="url"> Address</label></div>
 				</div>
-				<label class="field full" id="npFolderRow"><span>Folder with the HTML files<span class="help" tabindex="0" role="img" aria-label="The folder that contains index.html and the other pages. Browse… opens your system's folder window." data-tip="The folder that contains index.html and the other pages. Browse… opens your system's folder window.">?</span></span>
+				<label class="field full" id="npFolderRow"><span>Folder with the HTML files<span class="help" data-tip="The folder that contains index.html and the other pages. Browse… opens your system's folder window.">?</span></span>
 					<div class="input-btn"><input id="npFolder" placeholder="C:/Users/me/projects/site"><button class="btn ghost" type="button" data-browse="npFolder">Browse…</button></div>
 				</label>
-				<label class="field full" id="npUrlRow" hidden><span>Address of a running site<span class="help" tabindex="0" role="img" aria-label="The address where the site runs, e.g. http://localhost:3000. It must be running while you find pages and capture." data-tip="The address where the site runs, e.g. http://localhost:3000. It must be running while you find pages and capture.">?</span></span><input id="npUrl" placeholder="http://localhost:3000"></label>
+				<label class="field full" id="npUrlRow" hidden><span>Address of a running site<span class="help" data-tip="The address where the site runs, e.g. http://localhost:3000. It must be running while you find pages and capture.">?</span></span><input id="npUrl" placeholder="http://localhost:3000"></label>
 			</div>
 			<div class="row-actions"><button class="btn" id="createProject" type="button">Create</button><span class="error" id="npError"></span></div>
 		</section>
@@ -73,112 +83,153 @@
 		<div id="projectView" hidden>
 			<!-- 1. project (data-lock: read-only while Find pages or Capture runs) -->
 			<section class="card" data-lock>
-				<div class="card-head"><h2><span class="num">1</span>Project</h2><button class="link danger" id="deleteProject" type="button">Delete project</button></div>
+				<div class="card-head"><h2><div class="num"><span>1</span></div>Project</h2><button class="link danger" id="deleteProject" type="button">Delete project</button></div>
 				<div class="grid2">
-					<label class="field"><span>Name<span class="help" tabindex="0" role="img" aria-label="Your name for this project. Capture files are named after it." data-tip="Your name for this project. Capture files are named after it.">?</span></span><input data-bind="name"></label>
-					<div class="field"><span>Site<span class="help" tabindex="0" role="img" aria-label="Folder: html2frame serves your HTML files itself, no server needed. Address: a site that is already running, e.g. your development server at http://localhost:3000." data-tip="Folder: html2frame serves your HTML files itself, no server needed. Address: a site that is already running, e.g. your development server at http://localhost:3000.">?</span></span>
+					<label class="field"><span>Name<span class="help" data-tip="Your name for this project. Capture files are named after it.">?</span></span><input data-bind="name"></label>
+					<div class="field"><span>Site<span class="help" data-tip="Folder: html2frame serves your HTML files itself, no server needed. Address: a site that is already running, e.g. your development server at http://localhost:3000.">?</span></span>
 						<div class="seg"><label><input type="radio" name="kind" value="folder"> Folder</label><label><input type="radio" name="kind" value="url"> Address</label></div>
 					</div>
-					<label class="field full" id="folderRow"><span>Folder with the HTML files<span class="help" tabindex="0" role="img" aria-label="The folder that contains index.html and the other pages. Browse… opens your system's folder window." data-tip="The folder that contains index.html and the other pages. Browse… opens your system's folder window.">?</span></span>
+					<label class="field full" id="folderRow"><span>Folder with the HTML files<span class="help" data-tip="The folder that contains index.html and the other pages. Browse… opens your system's folder window.">?</span></span>
 						<div class="input-btn"><input id="folderInput" data-bind="source.folder"><button class="btn ghost" type="button" data-browse="folderInput">Browse…</button></div>
 					</label>
-					<label class="field full" id="urlRow"><span>Address of a running site<span class="help" tabindex="0" role="img" aria-label="The address where the site runs, e.g. http://localhost:3000. It must be running while you find pages and capture." data-tip="The address where the site runs, e.g. http://localhost:3000. It must be running while you find pages and capture.">?</span></span><input data-bind="source.url" placeholder="http://localhost:3000"></label>
-					<label class="field"><span>Start page<span class="help" tabindex="0" role="img" aria-label="Where Find pages begins following links, usually /index.html." data-tip="Where Find pages begins following links, usually /index.html.">?</span></span><input data-bind="start" placeholder="/index.html"></label>
+					<label class="field full" id="urlRow"><span>Address of a running site<span class="help" data-tip="The address where the site runs, e.g. http://localhost:3000. It must be running while you find pages and capture.">?</span></span><input data-bind="source.url" placeholder="http://localhost:3000"></label>
+					<label class="field"><span>Start page<span class="help" data-tip="Where Find pages begins following links, usually /index.html (or / for a running site).">?</span></span><input data-bind="start" placeholder="/index.html"></label>
 				</div>
-				<details class="advanced">
-					<summary>Advanced</summary>
-					<div class="grid2">
-						<label class="field full"><span>Ready when<span class="help" tabindex="0" role="img" aria-label="For sites that build their content with JavaScript: a condition that is true when the page has finished drawing; each page waits for it (up to 15 s). Example: !document.documentElement.classList.contains('loading'). Leave empty if unsure: the capture already waits for loading, network and fonts." data-tip="For sites that build their content with JavaScript: a condition that is true when the page has finished drawing; each page waits for it (up to 15 s). Example: !document.documentElement.classList.contains('loading'). Leave empty if unsure: the capture already waits for loading, network and fonts.">?</span></span><input data-bind="readyWhen" placeholder="document.documentElement.dataset.ready === 'yes'"></label>
-						<label class="field"><span>Extra wait after ready (ms)<span class="help" tabindex="0" role="img" aria-label="A pause after the page is ready, before measuring, in milliseconds (300 = 0.3 s). Raise it (1000–2000) if animations or late images are caught half-way; lower it to capture faster." data-tip="A pause after the page is ready, before measuring, in milliseconds (300 = 0.3 s). Raise it (1000–2000) if animations or late images are caught half-way; lower it to capture faster.">?</span></span><input data-bind="settleMs" type="number" min="0" placeholder="300"></label>
-						<label class="field"><span>Replace text<span class="help" tabindex="0" role="img" aria-label="Swaps characters or words in all text before importing, one rule per line as from=to. Useful when a Figma font lacks a character, e.g. ֏=AMD." data-tip="Swaps characters or words in all text before importing, one rule per line as from=to. Useful when a Figma font lacks a character, e.g. ֏=AMD.">?</span></span><textarea id="replaceText" rows="2" placeholder="֏=AMD"></textarea></label>
-					</div>
-				</details>
 			</section>
 
 			<!-- 2. screens -->
 			<section class="card" data-lock>
-				<div class="card-head"><h2><span class="num">2</span>Screen sizes<span class="help" tabindex="0" role="img" aria-label="Each ticked size is captured separately. In Figma every size becomes its own section (or page). Sizes marked &quot;touch&quot; are captured as touch devices." data-tip="Each ticked size is captured separately. In Figma every size becomes its own section (or page). Sizes marked &quot;touch&quot; are captured as touch devices.">?</span></h2></div>
+				<div class="card-head"><h2><div class="num"><span>2</span></div>Screen sizes<span class="help" data-tip="Each ticked size is captured separately. In Figma every size becomes its own section (or page). Sizes marked &quot;touch&quot; are captured as touch devices.">?</span></h2></div>
 				<div class="screens" id="screenPresets"></div>
 				<div class="grid2">
-					<div class="field"><span>Phones and tablets<span class="help" tabindex="0" role="img" aria-label="Which way phones and tablets are held: portrait, landscape, or both (each page is then captured twice). Desktop and laptop sizes are always landscape." data-tip="Which way phones and tablets are held: portrait, landscape, or both (each page is then captured twice). Desktop and laptop sizes are always landscape.">?</span></span>
+					<div class="field"><span>Phones and tablets<span class="help" data-tip="Which way phones and tablets are held: portrait, landscape, or both (each page is then captured twice). Desktop and laptop sizes are always landscape.">?</span></span>
 						<div class="seg" id="orientation"><label><input type="radio" name="orient" value="portrait"> Portrait</label><label><input type="radio" name="orient" value="landscape"> Landscape</label><label><input type="radio" name="orient" value="both"> Both</label></div>
 					</div>
-					<div class="field"><span>Custom sizes<span class="help" tabindex="0" role="img" aria-label="Any width × height in CSS pixels, e.g. a 1080 × 1920 kiosk. Tick &quot;touch&quot; for phones, tablets and touchscreens." data-tip="Any width × height in CSS pixels, e.g. a 1080 × 1920 kiosk. Tick &quot;touch&quot; for phones, tablets and touchscreens.">?</span></span>
+					<div class="field"><span>Custom sizes<span class="help" data-tip="Any width × height in CSS pixels, e.g. a 1080 × 1920 kiosk. Tick &quot;touch&quot; for phones, tablets and touchscreens.">?</span></span>
 						<div id="customScreens"></div>
+						<div class="error" id="customErr" hidden></div>
 						<button class="link start" id="addCustom" type="button">+ Add a custom size</button>
 					</div>
 				</div>
 			</section>
 
-			<!-- 3. languages, themes, accounts -->
-			<section class="card" data-lock>
-				<div class="card-head"><h2><span class="num">3</span>Languages, themes &amp; test accounts<span class="help" tabindex="0" role="img" aria-label="Versions of the site to capture (languages, light/dark themes…) and the logins needed for members-only pages." data-tip="Versions of the site to capture (languages, light/dark themes…) and the logins needed for members-only pages.">?</span></h2></div>
-				<p class="muted small">Each <b>dimension</b> (e.g. Language, Theme) lists its options; every combination is captured. An option sets localStorage, cookies or address parameters, written as <code>key=value</code>, separated by “;”.</p>
-				<div id="dimensions"></div>
-				<button class="link" id="addDimension" type="button">+ Add a dimension</button>
+			<!-- optional: closed until used; each summary says what is set -->
+			<div class="optional-label muted small">Optional: open what your site needs</div>
 
-				<h3>Test accounts<span class="help" tabindex="0" role="img" aria-label="An account logs in before the pages that need it, and Find pages also follows the links you only see when logged in. Passwords stay in the project file on this computer." data-tip="An account logs in before the pages that need it, and Find pages also follows the links you only see when logged in. Passwords stay in the project file on this computer.">?</span></h3>
-				<p class="muted small">Pages that need a login are found and captured with these accounts. Passwords stay in this project file on your computer.</p>
-				<div id="accounts"></div>
-				<button class="link" id="addAccount" type="button">+ Add an account</button>
-			</section>
-
-			<!-- 4. stored values -->
-			<section class="card" data-lock>
-				<div class="card-head">
-					<h2><span class="num">4</span>Stored values<span class="help" tabindex="0" role="img" aria-label="Values the site keeps in the browser (localStorage), set before every page opens, in every language, theme and account. Write each value exactly as the site stores it; see the browser&#39;s developer tools (Application → Local Storage). A language or theme option&#39;s own value for the same key wins." data-tip="Values the site keeps in the browser (localStorage), set before every page opens, in every language, theme and account. Write each value exactly as the site stores it; see the browser&#39;s developer tools (Application → Local Storage). A language or theme option&#39;s own value for the same key wins.">?</span> <span class="pill" id="storageCount">0</span></h2>
-					<div class="row-actions"><div class="seg small-seg" id="storageMode"><label><input type="radio" name="storage-mode" value="table"> Table</label><label><input type="radio" name="storage-mode" value="bulk"> Bulk</label></div><span class="help" tabindex="0" role="img" aria-label="Table: one row per value. Bulk: all values as text, one key=value per line, to paste or copy many at once." data-tip="Table: one row per value. Bulk: all values as text, one key=value per line, to paste or copy many at once.">?</span></div>
+			<details class="card optional" id="dimSection" data-lock>
+				<summary><span class="opt-title">Languages and themes<span class="help" data-tip="Versions of the site to capture, e.g. each language, or light and dark. Every combination is captured: 2 languages × 2 themes = each page 4 times.">?</span></span><span class="opt-summary muted" id="dimSummary"></span></summary>
+				<div class="opt-body">
+					<div id="dimensions"></div>
+					<button class="link" id="addDimension" type="button">+ Add languages, themes or another choice</button>
 				</div>
-				<p class="muted small">localStorage for every page, e.g. a saved cart or comparison list, so pages that read it are captured with content.</p>
-				<div id="storageTable">
-					<div id="storageWrap">
-						<table class="kv">
-							<thead><tr><th>Key</th><th>Value</th><th class="c-more"></th></tr></thead>
-							<tbody id="storageRows"></tbody>
-						</table>
+			</details>
+
+			<details class="card optional" id="accountSection" data-lock>
+				<summary><span class="opt-title">Test accounts<span class="help" data-tip="An account logs in before the pages that need it, and Find pages also follows the links you only see when logged in. Passwords stay in the project file on this computer.">?</span></span><span class="opt-summary muted" id="accountSummary"></span></summary>
+				<div class="opt-body">
+					<div id="accounts"></div>
+					<button class="link" id="addAccount" type="button">+ Add an account</button>
+				</div>
+			</details>
+
+			<details class="card optional" id="storageSection" data-lock>
+				<summary><span class="opt-title">Local storage<span class="help" data-tip="Values the site keeps in the browser (localStorage), set before every page opens, in every language, theme and account: e.g. a saved cart, so the cart page is captured with content. Write each value exactly as the site stores it; see the browser's developer tools (Application → Local Storage). A language or theme option's own value for the same key wins.">?</span></span><span class="opt-summary muted" id="storageSummary"></span></summary>
+				<div class="opt-body">
+					<div class="storage-mode"><div class="seg small-seg" id="storageMode"><label><input type="radio" name="storage-mode" value="table"> Table</label><label><input type="radio" name="storage-mode" value="bulk"> Bulk</label></div><span class="help" data-tip="Table: one row per value. Bulk: all values as text, one key=value per line, to paste or copy many at once.">?</span></div>
+					<div id="storageTable">
+						<div id="storageWrap">
+							<table class="kv">
+								<thead><tr><th>Key</th><th>Value</th><th class="c-more"></th></tr></thead>
+								<tbody id="storageRows"></tbody>
+							</table>
+						</div>
+						<button class="link" id="addStorage" type="button">+ Add a value</button>
 					</div>
-					<button class="link" id="addStorage" type="button">+ Add a value</button>
+					<div id="storageBulk" hidden>
+						<textarea id="storageText" rows="5" placeholder="shop.cart=[{&quot;id&quot;:3}]&#10;shop.currency=&quot;USD&quot;"></textarea>
+					</div>
+					<div class="error" id="storageErr" hidden></div>
 				</div>
-				<div id="storageBulk" hidden>
-					<textarea id="storageText" rows="5" placeholder="shop.cart=[{&quot;id&quot;:3}]&#10;shop.currency=&quot;USD&quot;"></textarea>
-				</div>
-				<div class="error" id="storageErr" hidden></div>
-			</section>
+			</details>
 
-			<!-- 5. pages -->
+			<details class="card optional" id="advSection" data-lock>
+				<summary><span class="opt-title">Loading<span class="help" data-tip="For pages that are captured too early or half-drawn: wait for a condition, or a little longer. Most sites need none of this.">?</span></span><span class="opt-summary muted" id="advSummary"></span></summary>
+				<div class="opt-body">
+					<div class="grid2">
+						<div class="field full"><span>Wait until<span class="help" data-tip="For pages that draw their content late and are captured half-empty: each page waits for these before it is captured (up to 15 s). Leave it empty if unsure.">?</span></span>
+							<div id="waitRows"></div>
+							<div class="wait-foot"><button class="link" id="addWait" type="button">+ Add a condition</button>
+								<span class="wait-join" id="waitJoin" hidden><span class="seg small-seg"><label><input type="radio" name="wait-join" value="all"> All of these</label><label><input type="radio" name="wait-join" value="any"> Any of these</label></span><span class="help" data-tip="All of these: the page is ready when every condition is true. Any of these: when the first one is.">?</span></span>
+							</div>
+						</div>
+						<label class="field"><span>Extra wait after ready (ms)<span class="help" data-tip="A pause after the page is ready, before measuring, in milliseconds (300 = 0.3 s). Raise it (1000–2000) if animations or late images are caught half-way; lower it to capture faster.">?</span></span><input data-bind="settleMs" type="number" min="0" placeholder="300"></label>
+					</div>
+				</div>
+			</details>
+
+			<details class="card optional" id="replaceSection" data-lock>
+				<summary><span class="opt-title">Replace text<span class="help" data-tip="Swaps characters or words in all text before importing. Useful when a Figma font lacks a character, e.g. ֏ → AMD. Each replacement is its own row; all of them apply to every page.">?</span></span><span class="opt-summary muted" id="replaceSummary"></span></summary>
+				<div class="opt-body">
+					<div class="storage-mode"><div class="seg small-seg"><label><input type="radio" name="replace-mode" value="table"> Table</label><label><input type="radio" name="replace-mode" value="bulk"> Bulk</label></div><span class="help" data-tip="Table: one row per replacement. Bulk: all of them as text, one from=to per line, to paste or copy many at once.">?</span></div>
+					<div id="replaceTable">
+						<div id="replaceWrap">
+							<table class="kv">
+								<thead><tr><th>Find</th><th>Replace with</th><th class="c-more"></th></tr></thead>
+								<tbody id="replaceRows"></tbody>
+							</table>
+						</div>
+						<button class="link" id="addReplace" type="button">+ Add a replacement</button>
+					</div>
+					<div id="replaceBulk" hidden>
+						<textarea id="replaceBulkText" rows="4" placeholder="֏=AMD"></textarea>
+					</div>
+				</div>
+			</details>
+
+			<!-- 3. pages -->
 			<section class="card">
 				<div class="card-head">
-					<h2><span class="num">5</span>Pages<span class="help" tabindex="0" role="img" aria-label="The pages to capture. Find pages fills the list by following the site's links; untick, rename, regroup or add pages by hand." data-tip="The pages to capture. Find pages fills the list by following the site's links; untick, rename, regroup or add pages by hand.">?</span> <span class="pill" id="pageCount">0</span></h2>
+					<h2><div class="num"><span>3</span></div>Pages<span class="help" data-tip="The pages to capture, in groups. Find pages fills the list by following the site's links. A ticked page is captured. Drag a page by its ⠿ handle to reorder it or to put it in another group; the frames in Figma follow this order.">?</span> <span class="pill" id="pageCount">0</span></h2>
 					<div class="row-actions" data-lock>
-						<label class="check small"><input type="checkbox" id="crawlUnlinked"> include pages nothing links to<span class="help" tabindex="0" role="img" aria-label="Also list .html files in the folder that no link leads to (for example pages opened only by a form or a script). They go into the group &quot;Not linked&quot;." data-tip="Also list .html files in the folder that no link leads to (for example pages opened only by a form or a script). They go into the group &quot;Not linked&quot;.">?</span></label>
+						<label class="check small"><input type="checkbox" id="crawlUnlinked"> include pages nothing links to<span class="help" data-tip="Also list .html files in the folder that no link leads to (for example pages opened only by a form or a script). They go into the group &quot;Not linked&quot;.">?</span></label>
 						<button class="btn" id="findPages" type="button">Find pages</button>
 					</div>
 				</div>
 				<div class="job" id="crawlJob" hidden><div class="job-line"><span class="spinner"></span><span id="crawlStatus">Finding pages…</span><button class="btn ghost small" id="crawlCancel" type="button" hidden>Cancel</button></div><pre class="log" id="crawlLog"></pre></div>
-				<!-- search the list (works while a job runs); set one group for the pages shown -->
+				<!-- search the list (works while a job runs) -->
 				<div class="page-tools" id="pageTools">
 					<label class="search"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg><input id="pageSearch" type="search" placeholder="Search by name, address, group or account" aria-label="Search pages" autocomplete="off" spellcheck="false"></label>
 					<span class="muted small" id="pageSearchInfo"></span>
-					<span class="group-tool" data-lock>
-						<button class="link" id="setGroupBtn" type="button">Set group…</button>
-						<span class="group-form" id="setGroupForm" hidden><input id="setGroupInput" list="groupList" placeholder="Group, e.g. My pages" aria-label="Group" autocomplete="off"><button class="btn small" id="setGroupApply" type="button">Apply</button><button class="link" id="setGroupCancel" type="button">Cancel</button></span>
-						<span class="help" tabindex="0" role="img" aria-label="Gives every page shown in the list (all of them, or the ones your search finds) the same group. In Figma each group can be its own section." data-tip="Gives every page shown in the list (all of them, or the ones your search finds) the same group. In Figma each group can be its own section.">?</span>
-					</span>
 				</div>
 				<datalist id="groupList"></datalist>
+				<datalist id="pathList"></datalist>
 				<div class="table-wrap" data-lock>
-					<table class="pages">
-						<thead><tr><th class="c-check"><input type="checkbox" id="allPages" title="All"></th><th>Name</th><th>Address<span class="help" tabindex="0" role="img" aria-label="The page's address on the site, e.g. /about.html or /product.html?id=3." data-tip="The page's address on the site, e.g. /about.html or /product.html?id=3.">?</span></th><th>Group<span class="help" tabindex="0" role="img" aria-label="Each group becomes a row of frames in Figma, with its name above (e.g. Public, Customer, Admin), or its own section if you choose Sections: Group in the plugin." data-tip="Each group becomes a row of frames in Figma, with its name above (e.g. Public, Customer, Admin), or its own section if you choose Sections: Group in the plugin.">?</span></th><th>Account<span class="help" tabindex="0" role="img" aria-label="Log in with this test account before capturing the page. Empty = as a visitor." data-tip="Log in with this test account before capturing the page. Empty = as a visitor.">?</span></th><th class="c-more"></th></tr></thead>
-						<tbody id="pageRows"></tbody>
+					<table class="pages grouped" id="pageTable">
+						<thead><tr><th class="c-drag"></th><th class="c-check"><input type="checkbox" id="allPages" title="All"></th><th>Name</th><th>Address<span class="help" data-tip="The page's address on the site, e.g. /about.html or /product.html?id=3.">?</span></th><th id="accountHead">Account<span class="help" data-tip="Log in with this test account before capturing the page. Empty = as a visitor.">?</span></th><th class="c-more"></th></tr></thead>
 					</table>
+					<!-- where a new group appears: at the end of the list -->
+					<div class="list-foot"><button class="link" id="newGroup" type="button">+ New group</button><span class="help" data-tip="Adds an empty group here, at the end of the list, with its name ready to type. Then drag pages into it, or add pages in it. Each group becomes a row of frames in Figma with its name above, or its own section if you choose Sections: Group in the plugin.">?</span></div>
 				</div>
 				<div class="empty-pages muted" id="noPages">No pages yet. Click <b>Find pages</b> to follow the site's links, or add pages by hand.</div>
 				<button class="link" id="addPage" type="button" data-lock>+ Add a page</button>
+				<!-- add a page, or a state of a page (the same address after some steps, e.g. "menu open") -->
+				<div class="block add-page" id="addPageForm" data-lock hidden>
+					<div class="block-head"><b id="apTitle">Add a page</b></div>
+					<div class="add-grid">
+						<label class="field"><span>Address<span class="help" data-tip="The page's address on the site, e.g. /about.html or /product.html?id=3. Start typing to pick one that Find pages has seen.">?</span></span><input id="apPath" list="pathList" placeholder="/about.html" autocomplete="off" spellcheck="false"></label>
+						<label class="field"><span>Name<span class="help" data-tip="The frame's name in Figma. Filled in from the address until you type your own.">?</span></span><input id="apName" placeholder="About" autocomplete="off"></label>
+						<label class="field"><span>Group</span><input id="apGroup" list="groupList" placeholder="Pages" autocomplete="off"></label>
+					</div>
+					<div class="field"><span>Before capturing, do these in order (optional)<span class="help" data-tip="For a state of the page: open a menu, fill a form, show a dialog. Each step names what it acts on with a CSS selector, e.g. #open-menu or .btn-login; right-click the element in your browser → Inspect to find its id or class.">?</span></span>
+						<div id="apSteps"></div>
+					</div>
+					<div class="row-actions"><button class="btn small" id="apAdd" type="button">Add</button><button class="link" id="apCancel" type="button">Cancel</button><span class="error" id="apError"></span></div>
+				</div>
 			</section>
 
-			<!-- 6. capture -->
+			<!-- 4. capture -->
 			<section class="card">
-				<div class="card-head"><h2><span class="num">6</span>Capture<span class="help" tabindex="0" role="img" aria-label="Opens every ticked page at every size and variant in a hidden browser, measures it, and saves a capture file. Then import it in Figma with the html2frame plugin." data-tip="Opens every ticked page at every size and variant in a hidden browser, measures it, and saves a capture file. Then import it in Figma with the html2frame plugin.">?</span></h2><span class="muted small" id="captureSummary"></span></div>
+				<div class="card-head"><h2><div class="num"><span>4</span></div>Capture<span class="help" data-tip="Opens every ticked page at every size and variant in a hidden browser, measures it, and saves a capture file. Then import it in Figma with the html2frame plugin.">?</span></h2><span class="muted small" id="captureSummary"></span></div>
 				<div class="capture-row">
 					<button class="btn big" id="captureBtn" type="button">Capture</button>
 					<div class="progress" id="captureProgress" hidden><div class="bar"><div id="captureBar"></div></div><span id="captureStatus"></span></div>
@@ -204,9 +255,9 @@
 		<span>·</span>
 		<a href="/license" target="_blank" rel="noopener">MIT License</a>
 		<span>·</span>
-		<span>© 2026 Ruben Vardanyan</span>
-		<span>·</span>
 		<a href="https://github.com/Ruben-Vardanyan/html2frame" target="_blank" rel="noopener">GitHub</a>
+		<span>·</span>
+		<span>© 2026 Ruben Vardanyan</span>
 	</footer>
 
 	<!-- all captures: search and filters; download or move to the recycle bin / Trash -->

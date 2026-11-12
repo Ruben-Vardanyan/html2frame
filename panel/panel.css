@@ -14,6 +14,7 @@
 	--danger: #dc3412;
 	--ok: #14ae5c;
 	--warn: #b86200;
+	--on-warn: #ffffff;
 	--radius: 10px;
 }
 /* native controls (scrollbars, selects, checkboxes) follow the theme */
@@ -32,6 +33,7 @@
 		--danger: #ff7a5c;
 		--ok: #79d297;
 		--warn: #f7d15f;
+		--on-warn: #1e1e1e;
 		color-scheme: dark; --scroll: #4a4a4a; --scroll-hover: #5f5f5f;
 	}
 }
@@ -47,6 +49,7 @@
 	--danger: #ff7a5c;
 	--ok: #79d297;
 	--warn: #f7d15f;
+	--on-warn: #1e1e1e;
 	color-scheme: dark; --scroll: #4a4a4a; --scroll-hover: #5f5f5f;
 }
 * { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: var(--scroll) transparent; }
@@ -87,12 +90,34 @@ a:hover { text-decoration: underline; }
 .picker-menu li { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .picker-menu li::before { content: ""; width: 14px; flex: none; text-align: center; }
 .picker-menu li:hover, .picker-menu li.active { background: var(--hover); }
-.picker-menu li[aria-selected="true"] { color: var(--brand); font-weight: 600; }
+/* the current choice: a tint, a tick and blue text, so "where I am" never looks like "where I point"
+   (hover and the arrow keys are grey; on the current choice they deepen its tint) */
+.picker-menu li[aria-selected="true"] { color: var(--brand); font-weight: 600; background: var(--brand-soft); }
+.picker-menu li[aria-selected="true"]:hover, .picker-menu li[aria-selected="true"].active { background: color-mix(in srgb, var(--brand) 20%, transparent); }
 .picker-menu li[aria-selected="true"]::before { content: "✓"; }
+/* the project list has a pinned row at each end: the arrow keys scroll an item into the part between them */
+#projectMenu { scroll-padding-block: 46px; }
+/* the current project: first in the list and pinned to its top while the others scroll under it, behind a line
+   (an opaque tint, so nothing shows through) */
+.picker-menu li.picker-current { position: sticky; top: -4px; z-index: 1; margin: -4px -4px 4px; padding: 10px 14px; border-bottom: 1px solid var(--line); border-radius: 0;
+	background: color-mix(in srgb, var(--brand) 12%, var(--card)); }
+.picker-menu li.picker-current:hover, .picker-menu li.picker-current.active { background: color-mix(in srgb, var(--brand) 20%, var(--card)); }
+/* "+ New project": an action, not a project, so it looks like the list's footer: behind a line, on the grey
+   panel colour, a drawn plus (centred in the tick's column, unlike a "+" letter) and blue text; pinned to the
+   bottom while the projects scroll under it */
+.picker-menu li.picker-new { position: sticky; bottom: -4px; margin: 4px -4px -4px; padding: 10px 14px; border-top: 1px solid var(--line); border-radius: 0; background: var(--bg-2); color: var(--brand); font-weight: 600; }
+.picker-menu li.picker-new::before { content: ""; height: 14px; background: currentColor;
+	-webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M7 2.5v9M2.5 7h9'/%3E%3C/svg%3E") center / 14px 14px no-repeat;
+	mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M7 2.5v9M2.5 7h9'/%3E%3C/svg%3E") center / 14px 14px no-repeat; }
+.picker-menu li.picker-new:hover, .picker-menu li.picker-new.active { background: color-mix(in srgb, var(--brand) 14%, var(--bg-2)); }
 /* the lists of the remaining native selects follow the theme as far as the browser allows */
 select option { background-color: var(--card); color: var(--text); }
-.save-state { color: var(--text-2); font-size: 12px; text-align: right; }
-.save-state.dirty { color: var(--warn); font-weight: 500; }
+/* Save: quiet while everything is saved, filled with the warning colour while something is not */
+.btn.save-btn { background: transparent; color: var(--text-2); border: 1px solid var(--line); }
+.btn.save-btn:disabled { opacity: .7; }
+.btn.save-btn.unsaved { background: var(--warn); color: var(--on-warn); border-color: var(--warn); }
+.btn.save-btn.unsaved:hover:not(:disabled) { background: color-mix(in srgb, var(--warn) 85%, var(--text)); }
+.btn.save-btn.unsaved:disabled { opacity: .4; }
 .busy-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--brand-soft); color: var(--brand); font-size: 12px; font-weight: 600; }
 
 main { max-width: 1040px; margin: 0 auto; padding: 20px 24px 24px; display: flex; flex-direction: column; gap: 16px; }
@@ -160,11 +185,11 @@ table.kv .c-more { width: 32px; padding-right: 0; }
 .seg label:has(input:checked) { background: var(--brand-soft); color: var(--brand); font-weight: 600; }
 .seg input { display: none; }
 .check { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.check.off { cursor: default; color: var(--text-2); }
+.check.off input { opacity: .5; }
 .row-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
 .card-head .row-actions { margin-top: 0; }
-.advanced { margin-top: 12px; }
-.advanced summary, .log-box summary { width: fit-content; cursor: pointer; color: var(--text-2); font-size: 12px; font-weight: 500; } /* only the word opens it */
-.advanced .grid2 { margin-top: 10px; }
+.log-box summary { width: fit-content; cursor: pointer; color: var(--text-2); font-size: 12px; font-weight: 500; } /* only the word opens it */
 .pill { min-width: 22px; padding: 1px 8px; border-radius: 10px; background: var(--bg-2); color: var(--text-2); font-size: 11px; font-weight: 600; text-align: center; }
 
 /* screens */
@@ -225,14 +250,11 @@ input[list]::-webkit-calendar-picker-indicator { width: 12px; height: 12px; marg
 .pages .open-page:hover { color: var(--brand); text-decoration: none; }
 .sim-hit { padding: 0 6px 4px; overflow-wrap: anywhere; }
 .sim-hit mark, .tag mark { background: var(--brand-soft); color: inherit; border-radius: 3px; }
-/* page search and "Set group" above the table */
+/* page search above the table */
 .page-tools { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
 .search { position: relative; display: flex; align-items: center; flex: 0 1 340px; min-width: 200px; }
 .search svg { position: absolute; left: 10px; color: var(--text-3); pointer-events: none; }
 .search input[type=search] { padding-left: 30px; }
-.group-tool { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
-.group-form { display: inline-flex; align-items: center; gap: 6px; }
-.group-form input[list] { width: 200px; height: 28px; }
 .job { margin-bottom: 12px; border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; background: var(--bg-2); }
 .job-line { display: flex; align-items: center; gap: 8px; font-weight: 500; }
 .job-line .btn { margin-left: auto; }
@@ -316,4 +338,290 @@ dialog::backdrop { background: rgba(0, 0, 0, .35); }
 	.picker-btn { min-width: 0; max-width: 46vw; }
 	.project-pick > span { display: none; }
 	.card { padding: 16px; }
+}
+
+/* ---- the panel's own pieces: sections, dropdowns, grouped pages, steps as rows. Kept after the rules above,
+   which some of them refine. ---- */
+input.invalid, textarea.invalid { border-color: var(--danger) !important; }
+
+/* optional sections: a card that is one line until opened */
+.optional-label { margin: 2px 4px -8px; }
+details.optional { padding: 0; }
+details.optional > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 20px; cursor: pointer; list-style: none; border-radius: 14px; }
+details.optional > summary::-webkit-details-marker { display: none; }
+details.optional > summary:hover { background: var(--hover); }
+details.optional[open] > summary { border-radius: 14px 14px 0 0; }
+.opt-title { display: flex; align-items: center; font-size: 14px; font-weight: 600; }
+/* the arrow: a drawn chevron (a mask, so it takes the text colour), centred on the title; it turns when open */
+.opt-title::before { content: ""; flex: none; width: 16px; height: 16px; margin: 0 8px 0 -2px; background: var(--text-2); transition: transform .15s;
+	-webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4.5 3l3 3-3 3'/%3E%3C/svg%3E") center / 16px 16px no-repeat;
+	mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4.5 3l3 3-3 3'/%3E%3C/svg%3E") center / 16px 16px no-repeat; }
+details.optional[open] .opt-title::before { transform: rotate(90deg); }
+.opt-summary { font-size: 12px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.opt-body { padding: 4px 20px 18px; }
+.opt-links { margin-top: 6px; gap: 16px; }
+
+/* languages and themes: one line saying how the site switches, then label + value per option */
+.dim-how { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; font-size: 12px; color: var(--text-2); }
+.dim-how input { width: 170px !important; height: 30px !important; font: 12px ui-monospace, Consolas, monospace; }
+.opt2, .opt2-head { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 22px; gap: 6px; align-items: center; margin-bottom: 6px; }
+.opt2 input { height: 30px; }
+.opt2-head { font-size: 11px; color: var(--text-3); margin-bottom: 4px; padding-left: 2px; }
+.block-head .link { white-space: nowrap; }
+
+/* test accounts */
+.account-main { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px 12px; margin-bottom: 8px; }
+.account-main input { height: 32px; }
+.by-hand { margin-top: 8px; }
+.by-hand > summary { width: fit-content; cursor: pointer; color: var(--text-2); font-size: 12px; font-weight: 500; }
+.by-hand .account-grid { margin-top: 10px; }
+
+/* steps as rows */
+.steps-editor { display: flex; flex-direction: column; gap: 6px; }
+.step { display: grid; grid-template-columns: 22px 170px minmax(0, 1fr) minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+.step .step-n { color: var(--text-3); font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }
+.step input:not([type=checkbox]) { height: 30px !important; border-color: var(--line) !important; background: var(--card) !important; padding: 0 8px !important; }
+.step input { font: 12px ui-monospace, Consolas, monospace; }
+.step .step-btns { display: flex; }
+.step .icon-btn { width: 22px; height: 26px; }
+.steps-foot { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.steps-editor textarea { min-height: 90px; }
+.steps-note { margin-top: 6px; }
+
+/* dropdowns: every choice list is a button and a list like the project picker (panel.js dropdown()) */
+.dd { display: inline-flex; min-width: 0; vertical-align: middle; }
+.dd .picker-btn { width: 100%; min-width: 0; max-width: none; height: 30px; padding: 0 8px 0 10px; font-size: 13px; font-weight: 400; }
+.dd .picker-btn .none { color: var(--text-3); }
+.dd-menu { position: fixed; top: 0; left: 0; z-index: 200; max-width: min(360px, 92vw); }
+.dd.in-row { display: flex; }
+.dd.in-row .picker-btn { height: 28px; border-color: transparent; background: transparent; padding: 0 6px; }
+.dd.in-row .picker-btn:hover, .dd.in-row .picker-btn[aria-expanded="true"] { border-color: var(--line); }
+.step > .dd { display: flex; }
+.dim-how .dd { min-width: 190px; }
+.capture-filters .dd { min-width: 160px; }
+.capture-filters .dd .picker-btn { height: 34px; }
+.storage-mode { display: flex; align-items: center; justify-content: flex-end; margin-bottom: 8px; }
+
+/* pages in groups, like a task list: a fold arrow, the group's name as a coloured label, its count */
+table.pages.grouped { min-width: 640px; }
+/* pages sit a step in from their group's header: the first column holds that step and the drag handle */
+.c-drag { width: 54px; padding: 4px 0 4px 34px !important; text-align: left; }
+.pages.grouped thead th.c-drag { padding: 8px 0 !important; }
+.drag.none { cursor: default; visibility: hidden; }
+.group-lead { display: inline-flex; align-items: center; gap: 10px; margin-right: 2px; }
+.list-foot { display: flex; align-items: center; padding: 10px 12px; border-top: 1px solid var(--line); }
+.list-foot .link { font-weight: 600; }
+.drag { display: inline-grid; place-items: center; width: 18px; height: 26px; color: var(--text-3); cursor: grab; user-select: none; font-size: 14px; line-height: 1; border-radius: 4px; }
+.drag:hover { color: var(--text); background: var(--hover); }
+.pages tbody.group > tr.group-row > td { background: transparent; border-top: 0; padding: 14px 6px 4px 8px; }
+.pages tbody.group:first-of-type > tr.group-row > td { padding-top: 8px; }
+.group-head { display: flex; align-items: center; gap: 10px; }
+/* the fold arrow: a span holding the drawing, which the button puts in its middle with flex (the same way the
+   numbers in circles are centred). The span is exactly the drawing's size and turns about its own middle. */
+.fold { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; margin: 0; color: var(--text-2); }
+.fold > span { display: flex; width: 16px; height: 16px; transition: transform .15s; }
+.fold svg { display: block; width: 16px; height: 16px; }
+tbody.group.closed .fold > span { transform: rotate(-90deg); }
+tbody.group.closed > tr:not(.group-row) { display: none; }
+.pages.searching tbody.group.closed > tr:not(.group-row):not(.filtered):not(.steps-row):not(.add-row) { display: table-row; }
+/* the group's name as a coloured label, exactly as wide as its text: the input lies over a hidden copy of the
+   text (data-text) that gives the box its width, in every browser */
+.group-label { display: inline-grid; align-items: center; max-width: 360px; height: 24px; border-radius: 6px; font-size: 12px; font-weight: 700; letter-spacing: .2px; line-height: 22px;
+	background: hsl(var(--g) 75% 55% / .22); border: 1px solid hsl(var(--g) 75% 55% / .6); }
+.group-label:hover, .group-label:focus-within { border-color: hsl(var(--g) 75% 55%); }
+.group-label::after { content: attr(data-text); grid-area: 1 / 1; visibility: hidden; white-space: pre; overflow: hidden; padding: 0 10px; }
+.pages td .group-label input.group-name { grid-area: 1 / 1; width: 0; min-width: 100%; /* takes the box's width, gives it none */ height: 22px; padding: 0 10px; border: 0; border-radius: 5px; background: transparent; color: var(--text); font: inherit; letter-spacing: inherit; outline: none; }
+.pages td .group-label input.group-name:hover { border: 0; }
+.pages td .group-label input.group-name::placeholder { font-style: normal; opacity: 1; color: var(--text-2); }
+.pages tr.add-row td { border-top: 1px solid var(--line); padding: 5px 6px 6px; }
+.pages tr.add-row .link { color: var(--text-2); font-weight: 500; }
+.pages tr.add-row .link:hover { color: var(--brand); text-decoration: none; }
+/* where a dragged page lands: a line before / after a row, or the whole group */
+.pages tbody.group.drop > tr > td { background: var(--brand-soft); }
+.pages tr.drop-before > td { box-shadow: inset 0 2px 0 var(--brand); }
+.pages tr.drop-after > td { box-shadow: inset 0 -2px 0 var(--brand); }
+.pages tr.dragging td { opacity: .4; }
+.pages tbody.group.dragging > tr > td { opacity: .4; }
+.pages tbody.group.drop-group-before > tr.group-row > td { box-shadow: inset 0 3px 0 var(--brand); }
+.pages tbody.group.drop-group-after > tr:last-child > td { box-shadow: inset 0 -3px 0 var(--brand); }
+/* the last cell is a real table cell here (panel.css makes it a flex box, which cannot size a column):
+   as wide as its tags and buttons, the other columns share the rest */
+.pages.grouped th.c-more, .pages.grouped td.c-more { display: table-cell; width: 1%; white-space: nowrap; text-align: right; }
+.pages.grouped td.c-more > * { vertical-align: middle; }
+.pages.grouped .tags { display: inline-flex; gap: 4px; margin-right: 4px; }
+.pages.grouped .tag { margin-left: 0; white-space: nowrap; }
+.pages.grouped thead th { border-bottom: 1px solid var(--line); }
+
+/* add a page */
+.add-page { margin-top: 10px; margin-bottom: 0; }
+.add-grid { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 8px 12px; margin-bottom: 10px; }
+
+@media (max-width: 760px) {
+	.account-main, .add-grid { grid-template-columns: 1fr; }
+	.step { grid-template-columns: 22px minmax(0, 1fr) auto; }
+	.step > select { grid-column: 2; }
+	.step > input { grid-column: 2; }
+	.step > .step-btns { grid-column: 3; grid-row: 1; }
+}
+
+/* small alignment fixes: a tick sits on the row's middle line, not on the text baseline */
+.pages.grouped .c-check input, .pages.grouped .group-lead input { vertical-align: middle; }
+.pages.grouped td.c-check { line-height: 1; }
+.option-head > span, .opt2-head > span, .block-head > .muted, .dim-how > span { white-space: nowrap; }
+.dim-key { display: inline-flex; align-items: center; }
+.block-head > input { min-width: 0; }
+
+/* "+ Add a page" opened: a page row to fill in, in the list's own columns */
+.pages tr.add-row.adding td { padding: 4px 6px; }
+.pages tr.add-row.adding td input:not([type=checkbox]) { border-color: var(--line); background: var(--card); }
+.pages tr.add-row.adding .btn.small { height: 26px; margin-right: 2px; }
+
+/* a section's header row is a button: clicking (or double-clicking) it must not select its text */
+details.optional > summary { user-select: none; -webkit-user-select: none; }
+
+/* wait until: a kind, what it looks at, remove */
+.wait-row { display: grid; grid-template-columns: 250px minmax(0, 1fr) 26px; gap: 6px; align-items: center; margin-bottom: 6px; }
+.wait-row .dd { display: flex; }
+.wait-row input { height: 30px !important; font: 12px ui-monospace, Consolas, monospace; }
+.wait-none { margin: 0 0 6px; }
+.wait-foot { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.wait-join { display: inline-flex; align-items: center; }
+@media (max-width: 760px) {
+	.wait-row { grid-template-columns: minmax(0, 1fr) 26px; }
+	.wait-row > input { grid-column: 1; }
+	.wait-row > .icon-btn { grid-column: 2; grid-row: 1; }
+}
+
+/* "?" marks beside a label: centred on the label's line (as they already are in titles), not hung from its baseline */
+.field > span:has(> .help), .option-head > span, .opt2-head > span, div.muted.small:has(> .help) { display: flex; align-items: center; }
+
+.step .icon-btn svg, .by-hand > summary svg { display: block; }
+/* "Change the login fields by hand": the same drawn chevron as the sections, in place of the browser's own marker */
+.by-hand > summary { display: flex; align-items: center; gap: 6px; list-style: none; }
+.by-hand > summary::-webkit-details-marker { display: none; }
+.by-hand > summary::before { content: ""; flex: none; width: 12px; height: 12px; background: var(--text-2); transition: transform .15s;
+	-webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4.5 3l3 3-3 3'/%3E%3C/svg%3E") center / 12px 12px no-repeat;
+	mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4.5 3l3 3-3 3'/%3E%3C/svg%3E") center / 12px 12px no-repeat; }
+.by-hand[open] > summary::before { transform: rotate(90deg); }
+.step .icon-btn:disabled { opacity: .3; cursor: default; background: transparent; }
+.step .icon-btn { padding: 0; }
+/* narrow windows: a block's head wraps instead of squeezing its switch; a switch's words stay on one line */
+.block-head { flex-wrap: wrap; }
+.seg label { white-space: nowrap; }
+
+/* "?" marks: the circle and the question mark are ONE drawn shape (a mask, so it takes the mark's colour), so
+   the question mark cannot sit off-centre in its circle at any zoom or screen scaling: as a letter in a CSS
+   circle it sat wherever the font and the rounding put it. One pixel lower than the middle of the line, where
+   the eye puts the middle of lower-case text. */
+.help { position: relative; top: 1px; width: 16px; height: 16px; border: 0; border-radius: 0; font-size: 0; color: var(--text-2);
+	background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='8' cy='8' r='7.25' stroke-width='1.1' stroke-opacity='.6'/%3E%3Cpath d='M6 6.1a2 2 0 1 1 3.15 1.65c-.72.48-1.15.9-1.15 1.55' stroke-width='1.5'/%3E%3Ccircle cx='8' cy='11.6' r='.85' fill='black' stroke='none'/%3E%3C/svg%3E") center / 100% 100% no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='8' cy='8' r='7.25' stroke-width='1.1' stroke-opacity='.6'/%3E%3Cpath d='M6 6.1a2 2 0 1 1 3.15 1.65c-.72.48-1.15.9-1.15 1.55' stroke-width='1.5'/%3E%3Ccircle cx='8' cy='11.6' r='.85' fill='black' stroke='none'/%3E%3C/svg%3E") center / 100% 100% no-repeat; }
+.help:hover, .help:focus-visible { color: var(--brand); border: 0; }
+/* in the table's heading row a mark must not make its line taller than the plain headings beside it
+   (that pushed "ADDRESS" above "NAME"), and it centres on the capitals */
+.pages th .help { top: -1px; margin-top: -5px; margin-bottom: -5px; }
+/* the label's text one pixel up: letters sit low in their line (8px above the capitals, 7px under the baseline),
+   and with lower-case letters the eye puts the middle lower still */
+.pages td .group-label input.group-name { padding-bottom: 2px; }
+
+/* a number in its circle: ordinary page text (sharp), in a span that a flex box puts in the middle of the circle.
+   24px: whole screen pixels at 100, 125 and 150 % scaling; flex: none: a tight title must not squeeze it into
+   an oval. */
+.num { display: flex; align-items: center; justify-content: center; flex: none; width: 24px; height: 24px; padding: 0; line-height: 1; }
+.num > span { line-height: 1; }
+
+/* every small icon button centres what it holds with flex and has no padding of its own: a button's built-in
+   side padding leaves less room than the icon needs, and the icon then hangs out to one side */
+.icon-btn { display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.fold { display: flex; }
+
+/* ---- narrow windows: tables slide sideways instead of squeezing or wrapping -------------------------
+   Every table (the page list, Local storage, Replace text) and the capture lists keep each cell on one line
+   at a width where its text is readable; the box around it scrolls sideways when the window is narrower. */
+table.pages.grouped { min-width: 900px; }
+.pages.grouped tr:not(.steps-row) > td, .pages.grouped th { white-space: nowrap; }
+#storageWrap, #replaceWrap { overflow-x: auto; }
+table.kv { min-width: 460px; }
+table.kv th { white-space: nowrap; }
+.captures { overflow-x: auto; }
+.captures li { min-width: max-content; }
+.captures li > span { white-space: nowrap; }
+.captures .cap-file { overflow: visible; }
+/* a step editor opened under a page stays in the visible part of the list, not across the table's full width */
+.table-wrap { container-type: inline-size; }
+.pages.grouped tr.steps-row > td:last-child > * { position: sticky; left: 8px; max-width: calc(100cqw - 110px); }
+/* ---- top bar ------------------------------------------------------------------------------------------
+   Wide: one line. Brand | project picker, Save | Help, theme (a thin line between the project's
+   actions and the panel's own). Below 900 px the subtitle goes, so the line still fits.
+   760 px and less: Help and the theme sit behind ⋯ as a small menu (they are rarely needed); still one line
+   down to 481 px. 480 px and less, two rows:  logo + name ........ [busy] [⋯]
+                                               [ project picker ▾ ]     [Save]
+   While the page scrolls, the first row goes and the second stays pinned, so Save (amber while something is
+   unsaved) is always in view. */
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.top-inner > .project-bar { margin-left: auto; } /* the project's actions sit beside Help and the theme, on the right */
+.top-more { display: flex; align-items: center; gap: 8px; padding-left: 16px; border-left: 1px solid var(--line); }
+.more-btn { display: none; }
+.more-menu { display: contents; }
+.more-label { display: none; }
+@media (max-width: 900px) {
+	.brand:not(.plain) .subtitle { display: none; } /* the Help page keeps its "Help" */
+	.picker-btn { min-width: 150px; }
+	.top-more { padding-left: 0; border-left: 0; }
+}
+@media (max-width: 760px) {
+	/* 50px = the first row (10px padding + 40px logo): it scrolls away; the 10px between the rows stays, so the
+	   pinned row keeps the same space above it as below */
+	.top:has(.project-bar) { top: -50px; }
+	.top:not(:has(.project-bar)) { position: static; } /* the Help page: its bar simply scrolls away */
+	.top-inner { gap: 10px 16px; }
+	.top-inner:has(.project-bar) { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "brand busy more" "pick pick save"; align-items: center; gap: 10px 8px; }
+	.top-inner > .brand { grid-area: brand; min-width: 0; }
+	.top-inner .project-bar { display: contents; }
+	.top-inner .busy-chip { grid-area: busy; justify-self: end; }
+	/* the spinner alone, in a circle; the words stay for screen readers, and the job's own line says what runs */
+	.top-inner .busy-chip { width: 34px; height: 34px; padding: 0; justify-content: center; }
+	.top-inner .busy-chip #busyText { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+	.top-inner .project-pick { grid-area: pick; min-width: 0; }
+	.top-inner .project-pick .picker { flex: 1; min-width: 0; }
+	.top-inner .project-pick .picker-btn { width: 100%; max-width: none; min-width: 0; }
+	.top-inner #saveProject { grid-area: save; }
+	/* its column is as wide as Save below it: keep the button on the right edge, in line with Save's */
+	.top-more { grid-area: more; justify-self: end; position: relative; padding: 0; border: 0; }
+	.more-btn { display: inline-flex; align-items: center; justify-content: center; width: 34px; padding: 0; }
+	.top-more.open .more-btn { background: var(--hover); }
+	.more-menu { display: none; position: absolute; z-index: 40; top: calc(100% + 6px); right: 0; width: 220px; padding: 6px; flex-direction: column; align-items: stretch; gap: 2px;
+		background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0, 0, 0, .16); }
+	.top-more.open .more-menu { display: flex; }
+	.more-menu > .btn { justify-content: flex-start; display: flex; align-items: center; height: 34px; border: 0; background: transparent; font-weight: 500; }
+	.more-menu > .btn:hover { background: var(--hover); text-decoration: none; }
+	.more-label { display: block; padding: 8px 14px 4px; border-top: 1px solid var(--line); margin-top: 4px; color: var(--text-2); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+	.more-menu .theme-switch { margin: 0 8px 6px; width: auto; }
+	.more-menu .theme-switch label { flex: 1; }
+	/* the step editor uses the list's whole visible width: out over the handle and tick columns */
+	.pages.grouped tr.steps-row > td:last-child > * { margin-left: -80px; max-width: calc(100cqw - 24px); }
+}
+/* 481–760 px: room enough for one line with ⋯:  logo + name ...... [busy] [ picker ▾ ] [Save] [⋯]
+   (the picker grows up to 320 px; the space left goes between the name and the picker). One row, so the whole
+   bar stays pinned. */
+@media (min-width: 481px) and (max-width: 760px) {
+	.top:has(.project-bar) { top: 0; }
+	.top-inner:has(.project-bar) { grid-template-columns: auto minmax(0, 1fr) auto minmax(140px, 320px) auto auto; grid-template-areas: "brand . busy pick save more"; }
+	.top-inner > .brand { min-width: max-content; } /* the name is never cut: the picker gives way first */
+}
+/* no project open ("Start a project", or the New project form, which has its own Create): Save has nothing to
+   save, so it goes. With no project at all the picker is gone too, and with them the divider before Help and,
+   on phones, the second row */
+body:has(#projectView[hidden]) #saveProject { display: none; }
+.top-inner:has(.project-pick[hidden]) .top-more { padding-left: 0; border-left: 0; }
+@media (max-width: 480px) {
+	.top:has(.project-pick[hidden]) { top: 0; }
+	.top-inner:has(.project-pick[hidden]) { grid-template-areas: "brand busy more"; }
+}
+/* the Help page's way back: an arrow and words; on a narrow screen the arrow alone, so its bar stays one line
+   (the words stay for screen readers) */
+.back-btn { display: inline-flex; align-items: center; gap: 6px; }
+.back-btn svg { flex: none; }
+@media (max-width: 480px) {
+	.back-btn { width: 34px; padding: 0; justify-content: center; }
+	.back-text { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }

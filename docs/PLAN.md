@@ -139,6 +139,8 @@ also `crawl(settings, opts)` for the panel.
   ("Home", "Profile"); the `h1` only for detail pages with a query (it names the item; elsewhere it is often a
   slogan or a person's name).
 - **Folder sources:** `.html` files no link leads to are reported as "Not linked" (added with `--unlinked`).
+  Address sources have no files to read, so there is no "Not linked" for them: the panel's "include pages
+  nothing links to" box is off for an address (its help says why); such pages are added with "Add a page".
 - **`--save`** adds new pages (by path) to the settings file and keeps every existing entry with its edits and
   steps; the file is written as it was (relative folder kept), with TAB indentation.
 
@@ -148,42 +150,90 @@ Start: `start.bat` (Windows) or `start.command` (macOS) installs `playwright-cor
 `node server.js --open`; `npm start` runs the server without opening the browser. If the panel is already
 running, the launcher just opens it.
 
-Single page, a top bar (busy indicator while a job runs, project picker, "+ New", Save with an "Unsaved
-changes" state; saving a new project name renames its file, `POST /api/projects/:name/rename`), six cards,
-and a footer with the licence ("MIT License · © 2026 Ruben Vardanyan · GitHub"; `/license` serves `LICENSE`).
-The plugin window shows the same licence line; its GitHub link opens through `figma.openExternal`. Source
-files start with a one-line licence notice. Cards:
-1. **Project.** Name, Folder or Address, start page; Advanced: `readyWhen`, `settleMs`, `replaceText`.
-   "Browse…" asks the server for the system's folder window (`POST /api/pick-folder`: the Explorer-style
-   IFileOpenDialog via PowerShell on Windows, `osascript choose folder` on macOS, zenity/kdialog on Linux);
-   only if there is none, a server-side folder list (drives on Windows, the home folder elsewhere). Without
-   projects: a "New project" card. Delete project moves the file to `projects/deleted/` (git-ignored).
-2. **Screens.** Preset cards with sizes, orientation (portrait / landscape / both), custom sizes.
-3. **Languages, themes & test accounts.** Dimensions with options (localStorage, cookies, address parameters as
-   `key=value; …`); flat `variants` of older projects are shown and saved as one dimension "Variant". Accounts:
-   a Form / Steps (JSON) switch. The form is the usual login (login page, user field and value, password field
-   and value with Show, submit button, optional "after login the address contains"); "Detect fields"
-   (`POST /api/detect-login`) opens the login page and fills the three selectors. Other logins as JSON steps.
-   "Test login" shows where it landed and a screenshot.
-4. **Stored values.** The project-wide `localStorage` as a Table (key, value, remove; "Add a value") or Bulk
-   text (one `key=value` per line); values starting with `[` or `{` must be valid JSON (marked red otherwise).
-5. **Pages.** "Find pages" (crawl, live log, Cancel; adds new pages and keeps edited ones; option to include pages
-   nothing links to), a table: include, name, address with an open icon (↗, the page in the user's browser, as a
-   visitor: an address site directly, a folder through `GET /api/open`), group (autocomplete from the groups in
-   use), account, tags (similar, steps, some screens/variants), steps (JSON) and the screens the page is captured
-   on (none = all; the frame estimate counts them), duplicate as a state, remove; "Add a page". A search box
-   filters the rows by name, address, group, account or a "similar" address (shown under the address when that is
-   what matched), "N of M shown"; the header box then ticks the shown pages, and "Set group…" gives the shown
-   pages (all of them without a search) one group (D19).
-6. **Capture.** Frame estimate (pages × screens × variants), Capture (saves first), progress bar, Cancel and log
+Single page, a top bar (busy indicator while a job runs, project picker, Save, which shows the state
+itself with no text beside it: quiet and disabled while everything is saved, filled in the warning colour while
+something is not; saving a new project name renames its file, `POST /api/projects/:name/rename`, and an alert says
+when that fails; the project picker's list has the current project first, tinted with a tick and pinned to its
+top, then the others, then "+ New project", an action drawn as the list's footer and pinned to its bottom, so it
+is never a button beside Save; Save is not shown while no project is open: no projects yet, or the New project
+form), four numbered cards with optional sections between 2 and 3,
+and a footer ("html2frame · Help · MIT License · GitHub · © 2026 Ruben Vardanyan"; the Help page's without Help;
+`/license` serves `LICENSE`). The plugin window shows the licence line "MIT License · © 2026 Ruben Vardanyan ·
+GitHub"; its GitHub link
+opens through `figma.openExternal`. Source files start with a one-line licence notice. The panel was redesigned
+in D20 (the old six-card panel is in git history). Every choice list is drawn like the project picker
+(`dropdown(select)` in `panel.js`: the `<select>` stays the source of truth). Narrow windows (checked from 320
+to 1920 px): the tables (page list, at least 900 px wide; Local storage and Replace text, at least 460 px) and
+the capture lists keep each cell on one line and slide sideways in their own box, never the page; a step editor
+opened under a page stays in the visible part of the list. Top bar: one line, the project's actions (picker,
+Save) then a thin line and the panel's own (Help, theme); below 900 px the subtitle goes so the line
+still fits. At 760 px and less a "⋯" button holds Help and the theme in a small menu (closes on a pick, a
+click outside, Escape or Tab); still one line down to 481 px. At 480 px and less, two rows: logo and name with
+a busy spinner and ⋯, then the picker across the
+width with Save; while the page scrolls the first row goes and the second stays pinned (10 px from the top), so
+Save is always in view. The Help page's bar stays one line: below 481 px its way back is an arrow alone; at
+760 px and less it scrolls away with the page.
+
+1. **Project.** Name, Folder or Address, start page. "Browse…" asks the server for the system's folder window
+   (`POST /api/pick-folder`: the Explorer-style IFileOpenDialog via PowerShell on Windows, `osascript choose
+   folder` on macOS, zenity/kdialog on Linux); only if there is none, a server-side folder list (drives on
+   Windows, the home folder elsewhere). Without projects: a "New project" card; a new Address project is checked
+   for `http(s)` and starts at the address's own path. Delete project moves the file to `projects/deleted/`
+   (git-ignored). Switching Folder ↔ Address keeps one of the two in the project: the one whose field is shown,
+   with the text that field holds. Find pages and Capture do not start without a site, or with an address that
+   does not start with `http://` or `https://`; the reason is shown in their status line.
+2. **Screen sizes.** Preset cards with sizes, orientation for phones and tablets (portrait / landscape / both),
+   custom sizes (two with one name are flagged). With no size ticked the capture uses Desktop, and says so.
+
+**Optional sections**, closed until used, each showing in its closed row what is set:
+- **Languages and themes** (`dimensions`): "the site switches it by localStorage / a cookie / the address,
+  named …" and a label + value per option; the three free fields (localStorage, cookies, address parameters as
+  `key=value; …`) are kept for options that set several values. Flat `variants` of older projects are shown and
+  saved as one dimension "Variant". The frame estimate ignores unnamed dimensions, as the capture does.
+- **Test accounts**: a Usual login / Other (steps) switch. The usual login is login page, e-mail, password
+  (with Show) and Test login, which saves the project first and shows where it landed and a screenshot; only
+  when the login fails with the standard field names does it look the fields up (`POST /api/detect-login`).
+  "Change the login fields by hand" holds the field selectors, submit button and "address after login
+  contains". Other logins are steps.
+- **Local storage** (project-wide `localStorage`): Table (key, value, remove; "+ Add a value") or Bulk text (one
+  `key=value` per line); values starting with `[` or `{` must be valid JSON (marked red otherwise). Quotes
+  around JSON copied from code (`'[{…}]'`) are dropped, by the panel and again by the capture.
+- **Loading**: Wait until edits `readyWhen` as rows, "This is on the page / is gone from the page" (a selector),
+  "The page has / no longer has this class" (a class of `<html>`) or "Custom (JavaScript)", joined by All of
+  these (`&&`) or Any of these (`||`); it still saves one line of JavaScript, and a line the rows cannot read is
+  one Custom row, unchanged. Extra wait after ready = `settleMs`.
+- **Replace text**: `replaceText` as rows of Find / Replace with, or Bulk text with one `from=to` per line.
+
+3. **Pages.** "Find pages" (crawl, live log, Cancel; adds new pages and keeps edited ones; option to include
+   pages nothing links to). The list is drawn in groups like a task list: a drag handle, a tick for the whole
+   group, a fold arrow, the group's name as a coloured label as wide as its text, which renames it, and its count.
+   Under it the pages: drag handle, include, name, address with an open icon (↗, the page in the user's browser,
+   as a visitor: an address site directly, a folder through `GET /api/open`), account, tags (similar, steps, some
+   screens/variants), "⋯" for the page's steps and the screens it is captured on (none = all; the frame estimate
+   counts them), "⧉" a state of this page (a short form with steps), remove. Steps are edited as rows (Click,
+   Type into, Wait until visible, …) with "Edit as JSON" as a fallback; broken steps JSON blocks Save instead of
+   being dropped. "+ Add a page" is each group's last row: it becomes a row to fill in right there, name and
+   address in the list's own columns, and Enter adds it at the end of that group and keeps the row open for the
+   next. "+ New group" at the end of the list adds an empty group there, kept in the panel until a page is in it,
+   since the settings file knows groups only through pages. Drag a page by its handle onto a page to put it
+   before or after it, or onto a group's header to put it at the end of that group; drag a group by its handle to
+   reorder the groups. A search box filters the rows by name, address, group, account or a "similar" address
+   (shown under the address when that is what matched), "N of M shown"; the header box then ticks the shown
+   pages (D19).
+4. **Capture.** Frame estimate (pages × screens × variants), Capture (saves first), progress bar, Cancel and log
    (SSE), result with failures and "Download JSON", the Figma hint, the 8 most recent captures (remove one, or all,
    to the recycle bin / Trash) and "View all (N)": a dialog with every capture, a search (file or project), project
    and date filters, Download and remove per file, and "Remove shown".
 
-While Find pages or Capture runs, the project cannot change: cards 1–4, the page table, its buttons and
-Capture are `inert` (dimmed); the page search, the logs, Cancel, downloads, Help and the theme stay usable. A
-panel opened while a job runs (a reload or a second tab) follows it, with Cancel. Cancel stops the job as soon as
-its browser closes and saves nothing: no capture file, no pages added.
+**Capture order:** pages are captured group by group: the groups in the order they first appear in `pages`, and
+inside a group in list order (`src/capture.js`; a list that keeps each group together is captured as written). The
+panel shows the list that way, lets a group be dragged to another place among the groups, and writes `pages`
+in the shown order after every change made there.
+
+While Find pages or Capture runs, the project cannot change: cards 1–2, the optional sections, the page list, its
+buttons and Capture are `inert` (dimmed); the page search, the logs, Cancel, downloads, Help and the theme stay
+usable. A panel opened while a job runs (a reload or a second tab) follows it, with Cancel. Cancel stops the job as
+soon as its browser closes and saves nothing: no capture file, no pages added.
 
 API (JSON):
 

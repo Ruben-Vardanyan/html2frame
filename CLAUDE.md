@@ -33,7 +33,9 @@ chosen screen sizes. Status: **v1 is built** (steps 1–6 of
 ## Next step
 
 Steps 1–6 are done (results in `docs/PLAN.md`). Next: step 7, the Figma Community release (D18). Keep the README
-and its screenshots (`docs/images/`) in sync with the panel and plugin. Everything must keep working on macOS too: no
+and its screenshots (`docs/images/`) in sync with the panel and plugin. The panel screenshots in `docs/images/` (`panel-*.png`)
+still show the old panel (replaced by D20 on 2026-11-11), and `plugin.png` (README and Help page) predates the
+plugin's Groups list, Sections choice and "nothing ticked at first"; the owner retakes them. Everything must keep working on macOS too: no
 Windows-only paths or commands without a macOS branch.
 
 ## Rules
